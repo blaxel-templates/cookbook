@@ -27,22 +27,6 @@
 - 🚀 **Scale Effortlessly** with serverless infrastructure
 - 🎯 **Monitor & Optimize** with built-in observability
 
-### Why Blaxel AI?
-
-```typescript
-// From idea to production in minutes, not months
-const myAgent = new Agent({
-  name: "PR Review Assistant",
-  instructions: "You are a senior code reviewer...",
-  model: await blModel("sandbox-openai"),
-  tools: await blTools(["github", "code-analysis"]),
-  memory: persistentMemory
-});
-
-// Deploy with one command
-await blDeploy(myAgent);
-```
-
 ## 🍽️ The Cookbook Menu
 
 Welcome to our collection of production-ready AI agent recipes! Each example demonstrates real-world applications and best practices.
@@ -52,18 +36,7 @@ Welcome to our collection of production-ready AI agent recipes! Each example dem
 | Recipe | Description | Difficulty | Ingredients |
 |--------|-------------|------------|-------------|
 | **[Git Review Agent](git-review-agent/)** | 🔍 Automated PR analysis and code review | ⭐⭐⭐ | GitHub API, Mastra |
-| **Coming Soon...** | 📧 Email Management Assistant | ⭐⭐ | Email APIs, NLP |
-| **Coming Soon...** | 🎨 Creative Content Generator | ⭐⭐⭐ | OpenAI, Image APIs |
-| **Coming Soon...** | 📊 Business Intelligence Agent | ⭐⭐⭐⭐ | Database connectors, Analytics |
-
-### 🍜 Appetizers (Quick Starters)
-
-*Perfect for getting a taste of what Blaxel can do!*
-
-- 🤖 **Simple Chat Bot** - Your first AI agent in 5 minutes
-- 🔄 **Workflow Orchestration** - Chain multiple agents together
-- 🛡️ **Secure Sandbox Demo** - Safe code execution patterns
-- 🎯 **Tool Integration** - Connect to external APIs
+| **Coming Soon...** | 🎨 Creative Code Generator | ⭐⭐⭐ | OpenAI, Image APIs |
 
 ## 🚀 Quick Start
 
@@ -173,27 +146,19 @@ finally {
 ### 🛡️ **Security Checklist**
 - [ ] Validate all user inputs
 - [ ] Use sandbox environments for code execution
-- [ ] Implement rate limiting
 - [ ] Sanitize AI outputs
-- [ ] Use secrets management for API keys
-- [ ] Enable audit logging
+- [ ] Add log for audit
 
 ## 📚 Learning Resources
 
 ### 📖 **Documentation**
 - [Blaxel Platform Docs](https://docs.blaxel.ai/) - Complete platform guide
-- [Mastra Framework](https://mastra.ai/docs) - Agent development framework
 - [API Reference](https://docs.blaxel.ai/api) - Comprehensive API docs
-
-### 🎥 **Tutorials & Videos**
-- [Getting Started with Blaxel](https://youtube.com/watch?v=example) - 15-minute quickstart
-- [Building Your First Agent](https://youtube.com/watch?v=example) - Step-by-step guide
-- [Advanced Agent Patterns](https://youtube.com/watch?v=example) - Expert techniques
 
 ### 💬 **Community**
 - [Discord Server](https://discord.gg/blaxel) - Real-time help and discussions
-- [GitHub Discussions](https://github.com/blaxel-ai/cookbook/discussions) - Q&A and feature requests
-- [Twitter](https://twitter.com/blaxel_ai) - Latest updates and announcements
+- [GitHub Discussions](https://github.com/blaxel-templates/cookbook/discussions) - Q&A and feature requests
+- [X](https://x.com/blaxelAI) - Latest updates and announcements
 
 ## 🤝 Contributing
 
@@ -229,11 +194,6 @@ your-recipe-name/
 - Visit the [Blaxel Documentation](https://docs.blaxel.ai) for platform guidance
 - Check the [Mastra Documentation](https://mastra.ai/en/docs) for framework-specific help
 - Join our [Discord Community](https://discord.gg/G3NqzUPcHP) for real-time assistance
-
-### 🏢 **Enterprise Support**
-- **Technical Account Manager** - Dedicated enterprise support
-- **Professional Services** - Custom implementation assistance
-- **Training Programs** - Team onboarding and best practices
 
 ## 📄 License
 
