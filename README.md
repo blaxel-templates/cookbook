@@ -21,7 +21,7 @@
 
 **Blaxel AI** is a cutting-edge platform that makes building, deploying, and managing AI agents as easy as following a recipe. Think of it as your AI agent kitchen where you can:
 
-- 🤖 **Build Intelligent Agents** using the powerful [Mastra framework](https://mastra.ai/)
+- 🤖 **Build Intelligent Agents** using the powerful Frameworks or Not
 - 🏗️ **Deploy Securely** with isolated sandbox environments
 - 🔧 **Orchestrate Multi-Agent Systems** for complex workflows
 - 🚀 **Scale Effortlessly** with serverless infrastructure
