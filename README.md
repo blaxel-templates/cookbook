@@ -10,7 +10,6 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-enabled-blue.svg)](https://www.typescriptlang.org/)
-[![Mastra](https://img.shields.io/badge/Mastra-powered-brightgreen.svg)](https://mastra.ai/)
 [![Blaxel CLI](https://img.shields.io/badge/Blaxel-CLI-orange.svg)](https://docs.blaxel.ai/)
 
 *Building intelligent AI agents has never been this delicious!* 🚀
@@ -192,7 +191,6 @@ your-recipe-name/
 
 - [Submit an issue](https://github.com/blaxel-templates/git-review-agent/issues) for bug reports or feature requests
 - Visit the [Blaxel Documentation](https://docs.blaxel.ai) for platform guidance
-- Check the [Mastra Documentation](https://mastra.ai/en/docs) for framework-specific help
 - Join our [Discord Community](https://discord.gg/G3NqzUPcHP) for real-time assistance
 
 ## 📄 License
