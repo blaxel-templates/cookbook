@@ -1,0 +1,12 @@
+type = "agent"
+
+[[triggers]]
+id = "ai-app-builder"
+type = "http"
+[triggers.configuration]
+path = "agents/ai-app-builder"
+authenticationType = "public"
+
+[runtime]
+generation = "mk3"
+memory = 4096
