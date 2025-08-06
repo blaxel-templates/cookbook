@@ -4,6 +4,21 @@ import { Agent } from "@mastra/core/agent";
 import { fetchGitHubPRData, formatPRMetadata, parsePRUrl } from "./github";
 import { Stream } from "./types";
 
+async function getCloneProcess(stream: Stream, sandbox: SandboxInstance) {
+  for (let i = 0; i < 10; i++) {
+    try {
+      const cloneProcess = await sandbox.process.get("clone-repository");
+      if (cloneProcess.status === "running") {
+        return await sandbox.process.wait("clone-repository", { maxWait: 60000 });
+      }
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (error) {
+      console.warn(`⚠️ Warning: retrying to get clone process... \n`);
+      stream.write(`⚠️ Warning: retrying to get clone process... \n`);
+    }
+  }
+  throw new Error("Clone process timed out");
+}
 export default async function agent(
   input: string,
   stream: Stream
@@ -87,10 +102,7 @@ export default async function agent(
     // Wait for repository to be cloned
     console.info(`📥 Cloning repository...`);
     stream.write(`📥 Cloning repository... \n`);
-    let cloneProcess = await sandbox.process.get("clone-repository");
-    if (cloneProcess.status === "running") {
-      cloneProcess = await sandbox.process.wait("clone-repository", { maxWait: 60000 });
-    }
+    const cloneProcess = await getCloneProcess(stream, sandbox);
 
     if (cloneProcess.status !== "completed") {
       throw new Error(`Repository clone failed: ${cloneProcess.logs}`);
