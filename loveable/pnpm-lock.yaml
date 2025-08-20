@@ -12,8 +12,8 @@ importers:
         specifier: ^1.0.39
         version: 1.0.83
       '@blaxel/core':
-        specifier: ^0.2.29
-        version: 0.2.29(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))
+        specifier: ^0.2.30
+        version: 0.2.30(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))
       next:
         specifier: 14.2.3
         version: 14.2.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -75,8 +75,8 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
-  '@blaxel/core@0.2.29':
-    resolution: {integrity: sha512-m3jeudosJjkkPn5FYsTsxA4cRcgxsZMzYtmClijkNYkNUcp6V+dgNSIobIYPZt91rbVxAwsNuB24yUwZFNg2qA==}
+  '@blaxel/core@0.2.30':
+    resolution: {integrity: sha512-hss3y6qTnu/x257VKSjDVDhKt/1NlvLmf6gdVa+t5jJkgrRQZ+tZ1APyFH4xqJy0hIzgoodCpsmbpa760bvQ8A==}
     engines: {node: '>=18'}
 
   '@emnapi/core@1.4.5':
@@ -2781,7 +2781,7 @@ snapshots:
       '@img/sharp-linux-x64': 0.33.5
       '@img/sharp-win32-x64': 0.33.5
 
-  '@blaxel/core@0.2.29(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))':
+  '@blaxel/core@0.2.30(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))
       '@modelcontextprotocol/sdk': 1.17.3

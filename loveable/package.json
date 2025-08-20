@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.39",
-    "@blaxel/core": "^0.2.29",
+    "@blaxel/core": "^0.2.30",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18",
