@@ -1,4 +1,3 @@
-import { createAppGenerationScript, createAppUpdateScript } from "@/lib/claude-code-generation";
 import { createStreamingResponse } from "@/lib/utils";
 import { getProject, updateProject, addHistoryEntry } from "@/lib/database";
 import { sandboxCache } from "@/lib/sandbox-cache";
@@ -15,6 +14,38 @@ declare const process: {
     [key: string]: string | undefined;
   };
 };
+
+/**
+ * Escape a string for safe use in shell commands by base64 encoding
+ */
+function escapeForShell(str: string): string {
+  return Buffer.from(str).toString('base64');
+}
+
+/**
+ * System prompt for Claude Code
+ */
+const SYSTEM_PROMPT = `You are an expert full-stack developer. Build or modify a beautiful, modern web application.
+
+Requirements:
+- Use Next.js 14 with App Router
+- Use React and TypeScript
+- Use Tailwind CSS for styling
+- Create a modern, beautiful UI with great UX
+- Make it fully functional and production-ready
+- Add proper error handling
+- Make it responsive for all screen sizes
+
+Project structure:
+- The project is already initialized in /app directory
+- package.json already exists with necessary dependencies
+- Create all necessary files in the src/ directory
+- Use the src/app directory for Next.js app router pages
+- Put reusable components in src/components
+
+After creating/modifying files:
+1. Run "npm install" to ensure all dependencies are installed
+2. Make sure the dev server keeps running after you finish`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,71 +94,11 @@ export async function POST(req: NextRequest) {
       let sandboxName = project.sandboxId;
       const isLocalSandbox = !!process.env.SANDBOX_FORCED_URL;
 
-      // Check if we already have a sandbox (for updates) or need to create a new one
-      const isUpdate = project.history.length > 1 && project.sandboxId;
+      // Check if we need to create a new sandbox or use existing one
+      const needsNewSandbox = !project.sandboxId;
 
       try {
-        if (isUpdate) {
-          // Reuse existing sandbox for updates
-          await sseWriter.sendLog("Connecting to existing sandbox...");
-
-          // Get cached sandbox instance
-          sandbox = await sandboxCache.get(
-            project.sandboxId!,
-            isLocalSandbox ? process.env.SANDBOX_FORCED_URL : undefined
-          );
-
-          await sseWriter.sendLog("Connected to sandbox, updating your app...");
-
-          // Create update script with history
-          const updateScript = createAppUpdateScript(prompt, project.history);
-
-          // Write and execute the update script
-          const scriptName = 'app-update.mjs';
-          const scriptPath = `/app/${scriptName}`;
-          await sandbox.fs.write(scriptPath, updateScript);
-
-          await sseWriter.sendLog("Running Claude Code to update your app...");
-
-          const updateProcessName = `update-${Date.now()}`;
-          let updateProcess = await sandbox.process.exec({
-            name: updateProcessName,
-            command: `node ${scriptName}`,
-            workingDir: '/app',
-            waitForCompletion: false,
-            env: {
-              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
-              NODE_PATH: '/app/node_modules',
-              SHELL: '/bin/bash',
-              HOME: '/app',
-            },
-            onLog: (log) => {
-              sseWriter.sendLog(log.trim());
-            }
-          });
-
-          // Wait for completion
-          updateProcess = await sandbox.process.wait(updateProcessName, { maxWait: 600000 }); // 10 minutes
-
-          if (updateProcess.status !== 'completed') {
-            throw new Error(`Update failed: ${updateProcess.logs || 'Unknown error'}`);
-          }
-
-          // Update project in database
-          addHistoryEntry(projectId, {
-            type: 'update',
-            description: `Updated: ${prompt}`,
-          });
-
-          // Send completion message
-          const msg = "✅ Your app has been updated! Check out the changes in the preview.";
-          await sseWriter.sendLog(msg);
-          await sseWriter.send({
-            type: "complete",
-            content: msg,
-          });
-
-        } else {
+        if (needsNewSandbox) {
           // Create new sandbox for initial generation
           await sseWriter.sendLog("Starting to build your app...");
           await sseWriter.sendLog("Setting up development environment...");
@@ -233,63 +204,112 @@ export async function POST(req: NextRequest) {
             ttydUrl,
             sandboxId: sandboxName,
           });
+        } else {
+          // Use existing sandbox
+          await sseWriter.sendLog("Connecting to existing sandbox...");
 
-          // Create new app
-          await sseWriter.sendLog("Generating app structure...");
+          sandbox = await sandboxCache.get(
+            project.sandboxId!,
+            isLocalSandbox ? process.env.SANDBOX_FORCED_URL : undefined
+          );
 
-          // Create generation script with history
-          const generationScript = createAppGenerationScript(prompt, project.history);
-
-          // Write the generation script to the sandbox root
-          const scriptName = 'app-generation.mjs';
-          const scriptPath = `/app/${scriptName}`;
-          await sandbox.fs.write(scriptPath, generationScript);
-
-          await sseWriter.sendLog("Running Claude Code to generate your app...");
-
-          // Execute the generation script
-          const generationProcessName = `generation-${Date.now()}`;
-          let generationProcess = await sandbox.process.exec({
-            name: generationProcessName,
-            command: `node ${scriptName}`,
-            workingDir: '/app',
-            waitForCompletion: false,
-            env: {
-              ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
-              NODE_PATH: '/app/node_modules',
-              SHELL: '/bin/bash',
-              HOME: '/app',
-            },
-            onLog: (log) => {
-              console.log(`[Blaxel] Generation process log: ${log.trim()}`);
-              sseWriter.sendLog(log.trim());
-            }
-          });
-
-          // Wait for completion with a longer timeout for generation
-          generationProcess = await sandbox.process.wait(generationProcessName, { maxWait: 600000 }); // 10 minutes
-
-          if (generationProcess.status !== 'completed') {
-            throw new Error(`Generation failed: ${generationProcess.logs || 'Unknown error'}`);
-          }
-
-          // The dev server should already be started by Claude Code
-          await sseWriter.sendLog("Your app is being served...");
-
-          // Add to project history
-          addHistoryEntry(projectId, {
-            type: 'create',
-            description: `Generated: ${prompt}`,
-          });
-
-          // Send completion message
-          const msg = "✅ Your app is ready! Check out the preview on the right. You can continue to make changes by describing what you'd like to update.";
-          await sseWriter.sendLog(msg);
-          await sseWriter.send({
-            type: "complete",
-            content: msg,
-          });
+          await sseWriter.sendLog("Connected to sandbox...");
         }
+
+        // Run Claude Code with unified approach
+        await sseWriter.sendLog("Running Claude Code...");
+
+        // Build Claude command - use --resume only if session_id exists
+        const processName = `claude-${Date.now()}`;
+        const encodedPrompt = escapeForShell(prompt);
+        const encodedSystemPrompt = escapeForShell(SYSTEM_PROMPT);
+        let claudeCommand: string;
+
+        if (project.sessionId) {
+          claudeCommand = `echo "${encodedPrompt}" | base64 -d | claude --resume "${project.sessionId}" -p --append-system-prompt "$(echo "${encodedSystemPrompt}" | base64 -d)" --output-format stream-json --permission-mode acceptEdits --verbose`;
+        } else {
+          claudeCommand = `echo "${encodedPrompt}" | base64 -d | claude -p --append-system-prompt "$(echo "${encodedSystemPrompt}" | base64 -d)" --output-format stream-json --permission-mode acceptEdits --verbose`;
+        }
+
+        let sessionId: string | null = null;
+        let claudeProcess = await sandbox.process.exec({
+          name: processName,
+          command: claudeCommand,
+          workingDir: '/app',
+          waitForCompletion: false,
+          env: {
+            ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+            SHELL: '/bin/bash',
+            HOME: '/app',
+          },
+          onLog: (log) => {
+            console.log(`[Blaxel] Claude Code log: ${log.trim()}`);
+
+            // Parse streaming JSON messages
+            const lines = log.split('\n');
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+
+              try {
+                const message = JSON.parse(trimmed);
+
+                // Extract session_id from result message
+                if (message.type === 'result' && message.session_id) {
+                  sessionId = message.session_id;
+                }
+
+                // Display assistant's text content
+                if (message.type === 'assistant' && message.message?.content) {
+                  const content = message.message.content;
+                  if (Array.isArray(content)) {
+                    for (const block of content) {
+                      if (block.type === 'text' && block.text) {
+                        sseWriter.sendLog(block.text);
+                      }
+                    }
+                  }
+                }
+              } catch (error) {
+                // If not JSON, it might be a non-JSON log line
+                if (!trimmed.startsWith('{')) {
+                  sseWriter.sendLog(trimmed);
+                }
+              }
+            }
+          }
+        });
+
+        // Wait for completion
+        claudeProcess = await sandbox.process.wait(processName, { maxWait: 600000 }); // 10 minutes
+
+        if (claudeProcess.status !== 'completed') {
+          throw new Error(`Claude Code failed: ${claudeProcess.logs || 'Unknown error'}`);
+        }
+
+        // Store session_id if captured
+        if (sessionId) {
+          updateProject(projectId, { sessionId });
+          console.log(`[API] Stored session_id: ${sessionId}`);
+        }
+
+        // Add to project history
+        const historyType = needsNewSandbox ? 'create' : 'update';
+        const historyDescription = needsNewSandbox ? `Generated: ${prompt}` : `Updated: ${prompt}`;
+        addHistoryEntry(projectId, {
+          type: historyType,
+          description: historyDescription,
+        });
+
+        // Send completion message
+        const msg = needsNewSandbox
+          ? "✅ Your app is ready! Check out the preview on the right. You can continue to make changes by describing what you'd like to update."
+          : "✅ Your app has been updated! Check out the changes in the preview.";
+        await sseWriter.sendLog(msg);
+        await sseWriter.send({
+          type: "complete",
+          content: msg,
+        });
 
         console.log(`[API] App generation/update complete`);
 

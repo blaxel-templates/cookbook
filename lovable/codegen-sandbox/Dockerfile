@@ -16,7 +16,7 @@ COPY --from=ghcr.io/blaxel-ai/sandbox:latest /sandbox-api /usr/local/bin/sandbox
 RUN npx create-next-app@latest /app --use-npm --typescript --eslint --tailwind --src-dir --app --import-alias "@/*" --no-git --yes
 
 # Install Claude Agent SDK
-RUN npm install @anthropic-ai/claude-agent-sdk@latest
+RUN npm install -g @anthropic-ai/claude-code
 
 # Copy and run the pre-warm script to build .next cache
 COPY prewarm-cache.sh /tmp/prewarm-cache.sh
