@@ -1,6 +1,6 @@
 # AI App Builder
 
-An AI-powered code generation agent that builds full-stack applications from natural language descriptions. Similar to Loveable, it features a split-screen interface with chat on the left and live preview on the right. Uses Claude Code for intelligent code generation inside secure Blaxel sandboxes.
+An AI-powered code generation agent that builds full-stack applications from natural language descriptions. Similar to Lovable, it features a split-screen interface with chat on the left and live preview on the right. Uses Claude Code for intelligent code generation inside secure Blaxel sandboxes.
 
 ## Features
 
@@ -33,7 +33,7 @@ Create a `.env.local` file:
 
 ```bash
 ANTHROPIC_API_KEY=your-api-key-here
-SANDBOX_IMAGE=prod/main/sandbox/custom-sandbox:latest # Your custom sandbox image
+SANDBOX_IMAGE=sandbox/codegen-sandbox:latest # Optional, default: sandbox/codegen-sandbox:latest
 ```
 
 ### Custom Sandbox
@@ -41,9 +41,8 @@ SANDBOX_IMAGE=prod/main/sandbox/custom-sandbox:latest # Your custom sandbox imag
 The app uses a custom sandbox with Claude Code pre-installed. Deploy it first:
 
 ```bash
-cd blaxel-custom-sandbox
+cd codegen-sandbox
 bl deploy
-# Note the image name and add it to SANDBOX_IMAGE in .env.local
 ```
 
 ### Local Development

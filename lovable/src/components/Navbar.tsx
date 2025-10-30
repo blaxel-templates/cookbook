@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function Navbar() {
   return (
-    <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-4">
+    <nav className="sticky top-0 left-0 right-0 z-20 flex items-center justify-between px-6 py-4 bg-black border-b border-gray-800">
       {/* Logo & main navigation */}
       <div className="flex items-center gap-10">
         <Link
@@ -17,3 +17,4 @@ export default function Navbar() {
     </nav>
   );
 }
+

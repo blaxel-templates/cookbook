@@ -7,3 +7,6 @@ memory = 8192
 name = "nextjs-dev"
 target = 3000
 protocol = "HTTP"
+[[runtime.ports]]
+name = "ttyd"
+target = 12345

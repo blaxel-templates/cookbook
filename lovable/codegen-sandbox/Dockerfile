@@ -1,18 +1,22 @@
 FROM node:22-alpine
 
+WORKDIR /app
+
 RUN apk update && apk add --no-cache \
   git \
   curl \
   netcat-openbsd \
   bash \
+  ttyd \
   && rm -rf /var/cache/apk/*
 
-WORKDIR /app
 
 COPY --from=ghcr.io/blaxel-ai/sandbox:latest /sandbox-api /usr/local/bin/sandbox-api
 
 RUN npx create-next-app@latest /app --use-npm --typescript --eslint --tailwind --src-dir --app --import-alias "@/*" --no-git --yes
-RUN npm install @anthropic-ai/claude-code@latest
+
+# Install Claude Agent SDK
+RUN npm install @anthropic-ai/claude-agent-sdk@latest
 
 # Copy and run the pre-warm script to build .next cache
 COPY prewarm-cache.sh /tmp/prewarm-cache.sh
