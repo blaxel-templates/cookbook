@@ -1,12 +1,13 @@
-import { createStreamingResponse } from "@/lib/utils";
 import { getProject, updateProject, addHistoryEntry } from "@/lib/database";
 import { sandboxCache } from "@/lib/sandbox-cache";
 import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core";
 import { NextRequest } from "next/server";
 
-// Disable caching for this route
+// Route segment config for streaming
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 600; // 10 minutes max execution time
 
 // Ensure process is available in Node.js runtime
 declare const process: {
@@ -85,23 +86,37 @@ export async function POST(req: NextRequest) {
 
     console.log(`[API] Starting app generation for: ${prompt}`);
 
-    // Create a streaming response
-    const { response, sseWriter } = createStreamingResponse();
+    // Create streaming response with async work in pull()
+    const encoder = new TextEncoder();
 
-    // Start the async generation
-    (async () => {
-      let sandbox: SandboxInstance | null = null;
-      let sandboxName = project.sandboxId;
-      const isLocalSandbox = !!process.env.SANDBOX_FORCED_URL;
+    const stream = new ReadableStream({
+      async start(controller) {
+        // Helper to write to stream
+        const writeStream = (data: any) => {
+          try {
+            const json = JSON.stringify(data);
+            controller.enqueue(encoder.encode(`${json}\n`));
+          } catch (error) {
+            console.error('Error writing to stream:', error);
+          }
+        };
 
-      // Check if we need to create a new sandbox or use existing one
-      const needsNewSandbox = !project.sandboxId;
+        const writeLog = (log: string) => {
+          writeStream({ log });
+        };
 
-      try {
+        let sandbox: SandboxInstance | null = null;
+        let sandboxName = project.sandboxId;
+        const isLocalSandbox = !!process.env.SANDBOX_FORCED_URL;
+
+        // Check if we need to create a new sandbox or use existing one
+        const needsNewSandbox = !project.sandboxId;
+
+        try {
         if (needsNewSandbox) {
           // Create new sandbox for initial generation
-          await sseWriter.sendLog("Starting to build your app...");
-          await sseWriter.sendLog("Setting up development environment...");
+          writeLog("Starting to build your app...");
+          writeLog("Setting up development environment...");
 
           sandboxName = `app-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
@@ -141,10 +156,10 @@ export async function POST(req: NextRequest) {
             sandboxCache.set(sandboxName, sandbox);
           }
 
-          await sseWriter.sendLog(`Environment ready: ${sandboxName}`);
+          writeLog(`Environment ready: ${sandboxName}`);
 
           // Create preview URLs
-          await sseWriter.sendLog("Setting up preview...");
+          writeLog("Setting up preview...");
 
           let previewUrl = null;
           let ttydUrl = null;
@@ -170,7 +185,7 @@ export async function POST(req: NextRequest) {
             console.log(`[Blaxel] Preview URL created: ${previewUrl}`);
 
             // Create TTYD terminal preview on port 12345
-            await sseWriter.sendLog("Setting up terminal access...");
+            writeLog("Setting up terminal access...");
             const ttydPreview = await sandbox.previews.create({
               metadata: { name: "ttyd-terminal" },
               spec: {
@@ -199,25 +214,25 @@ export async function POST(req: NextRequest) {
           });
 
           // Send preview URLs to frontend
-          await sseWriter.send({
+          writeStream({
             previewUrl,
             ttydUrl,
             sandboxId: sandboxName,
           });
         } else {
           // Use existing sandbox
-          await sseWriter.sendLog("Connecting to existing sandbox...");
+          writeLog("Connecting to existing sandbox...");
 
           sandbox = await sandboxCache.get(
             project.sandboxId!,
             isLocalSandbox ? process.env.SANDBOX_FORCED_URL : undefined
           );
 
-          await sseWriter.sendLog("Connected to sandbox...");
+          writeLog("Connected to sandbox...");
         }
 
         // Run Claude Code with unified approach
-        await sseWriter.sendLog("Running Claude Code...");
+        writeLog("Running Claude Code...");
 
         // Build Claude command - use --resume only if session_id exists
         const processName = `claude-${Date.now()}`;
@@ -265,7 +280,7 @@ export async function POST(req: NextRequest) {
                   if (Array.isArray(content)) {
                     for (const block of content) {
                       if (block.type === 'text' && block.text) {
-                        sseWriter.sendLog(block.text);
+                        writeLog(block.text);
                       }
                     }
                   }
@@ -273,7 +288,7 @@ export async function POST(req: NextRequest) {
               } catch (error) {
                 // If not JSON, it might be a non-JSON log line
                 if (!trimmed.startsWith('{')) {
-                  sseWriter.sendLog(trimmed);
+                  writeLog(trimmed);
                 }
               }
             }
@@ -305,31 +320,42 @@ export async function POST(req: NextRequest) {
         const msg = needsNewSandbox
           ? "✅ Your app is ready! Check out the preview on the right. You can continue to make changes by describing what you'd like to update."
           : "✅ Your app has been updated! Check out the changes in the preview.";
-        await sseWriter.sendLog(msg);
-        await sseWriter.send({
+        writeLog(msg);
+        writeStream({
           type: "complete",
           content: msg,
         });
 
         console.log(`[API] App generation/update complete`);
 
-      } catch (error: any) {
-        console.error("[API] Error during app generation:", error);
-        await sseWriter.sendLog(`❌ Error during app generation: ${error.message}`);
+        } catch (error: any) {
+          console.error("[API] Error during app generation:", error);
+          writeLog(`❌ Error during app generation: ${error.message}`);
 
-        // Add error to project history
-        addHistoryEntry(projectId, {
-          type: 'error',
-          description: `Error: ${error.message}`,
-        });
-      } finally {
-        // Note: We don't clean up the sandbox here because the user might want to continue working on it
-        await sseWriter.sendDone();
-        await sseWriter.close();
-      }
-    })();
+          // Add error to project history
+          addHistoryEntry(projectId, {
+            type: 'error',
+            description: `Error: ${error.message}`,
+          });
+        } finally {
+          // Note: We don't clean up the sandbox here because the user might want to continue working on it
+          try {
+            controller.enqueue(encoder.encode('[DONE]\n'));
+            controller.close();
+          } catch (error) {
+            console.error('Error closing stream:', error);
+          }
+        }
+      },
+    });
 
-    return response;
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      },
+    });
 
   } catch (error: any) {
     console.error("[API] Error:", error);

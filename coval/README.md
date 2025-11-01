@@ -53,9 +53,6 @@ npm install
 
 # Run development server
 npm run dev
-
-# Or use Blaxel serve for sandbox features
-bl serve --hotreload
 ```
 
 ### Deploy to Blaxel
@@ -65,7 +62,7 @@ bl serve --hotreload
 bl deploy
 
 # Deploy custom sandbox (if not already done)
-cd blaxel-custom-sandbox
+cd codegen-sandbox
 bl deploy
 ```
 

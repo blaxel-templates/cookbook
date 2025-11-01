@@ -1,10 +1,10 @@
 type = "agent"
 
 [[triggers]]
-id = "ai-app-builder"
+id = "coval"
 type = "http"
 [triggers.configuration]
-path = "agents/ai-app-builder"
+path = "agents/coval"
 authenticationType = "public"
 
 [runtime]

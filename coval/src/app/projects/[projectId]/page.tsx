@@ -3,6 +3,8 @@
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
+import Link from "next/link";
+import { fetchWithBasePath, navigateWithBasePath, withBasePath } from "@/lib/basePath";
 
 interface FileNode {
   name: string;
@@ -48,7 +50,7 @@ export default function ProjectPage() {
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}`, {
+        const response = await fetchWithBasePath(`/api/projects/${projectId}`, {
           cache: 'no-store',
         });
         if (response.ok) {
@@ -96,7 +98,7 @@ export default function ProjectPage() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetchWithBasePath("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -137,60 +139,59 @@ export default function ProjectPage() {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
+          const trimmed = line.trim();
+          if (!trimmed) continue;
 
-            if (data === "[DONE]") {
+          if (trimmed === "[DONE]") {
+            setIsGenerating(false);
+            setIsComplete(true);
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(trimmed);
+
+            if (parsed.log) {
+              setLogs((prev) => [...prev, parsed.log]);
+
+              const log = parsed.log.toLowerCase();
+              if (log.includes("thinking")) {
+                setCurrentStatus("Thinking");
+              } else if (log.includes("generating") || log.includes("creating")) {
+                setCurrentStatus("Building");
+              } else if (log.includes("installing")) {
+                setCurrentStatus("Installing");
+              } else if (log.includes("starting")) {
+                setCurrentStatus("Starting");
+              }
+            }
+
+            if (parsed.files) {
+              setFiles(parsed.files);
+            }
+
+            if (parsed.previewUrl) {
+              setPreviewUrl(parsed.previewUrl);
+            }
+
+            if (parsed.ttydUrl) {
+              setTtydUrl(parsed.ttydUrl);
+            }
+
+            // Refresh files after updates
+            if (parsed.type === "complete") {
+              setTimeout(() => {
+                refreshFiles();
+              }, 2000);
+            }
+
+            if (parsed.type === "complete") {
               setIsGenerating(false);
               setIsComplete(true);
-              break;
+              setCurrentStatus("Ready");
             }
-
-            try {
-              const parsed = JSON.parse(data);
-
-              if (parsed.log) {
-                setLogs((prev) => [...prev, parsed.log]);
-
-                const log = parsed.log.toLowerCase();
-                if (log.includes("thinking")) {
-                  setCurrentStatus("Thinking");
-                } else if (log.includes("generating") || log.includes("creating")) {
-                  setCurrentStatus("Building");
-                } else if (log.includes("installing")) {
-                  setCurrentStatus("Installing");
-                } else if (log.includes("starting")) {
-                  setCurrentStatus("Starting");
-                }
-              }
-
-              if (parsed.files) {
-                setFiles(parsed.files);
-              }
-
-              if (parsed.previewUrl) {
-                setPreviewUrl(parsed.previewUrl);
-              }
-
-              if (parsed.ttydUrl) {
-                setTtydUrl(parsed.ttydUrl);
-              }
-
-              // Refresh files after updates
-              if (parsed.type === "complete") {
-                setTimeout(() => {
-                  refreshFiles();
-                }, 2000);
-              }
-
-              if (parsed.type === "complete") {
-                setIsGenerating(false);
-                setIsComplete(true);
-                setCurrentStatus("Ready");
-              }
-            } catch (e) {
-              console.error("Error parsing SSE data:", e);
-            }
+          } catch (e) {
+            console.error("Error parsing stream data:", e);
           }
         }
       }
@@ -225,7 +226,7 @@ export default function ProjectPage() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const response = await fetchWithBasePath(`/api/projects/${projectId}`, {
         method: 'DELETE',
       });
 
@@ -234,7 +235,7 @@ export default function ProjectPage() {
       }
 
       // Navigate back to home
-      router.push('/');
+      navigateWithBasePath(router, '/');
     } catch (error) {
       console.error('Error deleting project:', error);
       alert('Failed to delete project. Please try again.');
@@ -249,7 +250,7 @@ export default function ProjectPage() {
       try {
         // Remove leading slash and split path
         const pathParts = node.path.replace(/^\//, '').split('/');
-        const response = await fetch(`/api/projects/${projectId}/files/${pathParts.join('/')}`, {
+        const response = await fetchWithBasePath(`/api/projects/${projectId}/files/${pathParts.join('/')}`, {
           cache: 'no-store',
         });
 
@@ -269,7 +270,7 @@ export default function ProjectPage() {
   const refreshFiles = async () => {
     setIsRefreshingFiles(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/files`, {
+      const response = await fetchWithBasePath(`/api/projects/${projectId}/files`, {
         cache: 'no-store',
       });
       if (response.ok) {
@@ -332,7 +333,7 @@ export default function ProjectPage() {
 
     try {
       // Fetch folder contents
-      const response = await fetch(`/api/projects/${projectId}/files?path=${encodeURIComponent(node.path)}`, {
+      const response = await fetchWithBasePath(`/api/projects/${projectId}/files?path=${encodeURIComponent(node.path)}`, {
         cache: 'no-store',
       });
 
@@ -571,15 +572,15 @@ export default function ProjectPage() {
         <div className="flex items-center justify-between bg-[#0d0d0d] border-b border-gray-800 px-4 h-12">
           <div className="flex items-center gap-4">
             {/* Back Button */}
-            <button
-              onClick={() => router.push('/')}
+            <Link
+              href={withBasePath('/')}
               className="p-2 text-gray-400 hover:text-white transition-all"
               title="Back to home"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-            </button>
+            </Link>
 
             {/* Divider */}
             <div className="h-6 w-px bg-gray-700"></div>

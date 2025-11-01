@@ -3,6 +3,7 @@
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { fetchWithBasePath, navigateWithBasePath } from "@/lib/basePath";
 
 export default function Home() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function Home() {
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await fetch('/api/projects', {
+        const response = await fetchWithBasePath('/api/projects', {
           cache: 'no-store',
         });
         if (response.ok) {
@@ -35,7 +36,7 @@ export default function Home() {
 
     try {
       // Create a new project
-      const response = await fetch('/api/projects', {
+      const response = await fetchWithBasePath('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,7 +53,7 @@ export default function Home() {
       const { project } = await response.json();
 
       // Navigate to project page
-      router.push(`/projects/${project.id}?desc=${encodeURIComponent(projectDescription)}`);
+      navigateWithBasePath(router, `/projects/${project.id}?desc=${encodeURIComponent(projectDescription)}`);
     } catch (error) {
       console.error('Error creating project:', error);
       alert('Failed to create project. Please try again.');
@@ -67,7 +68,7 @@ export default function Home() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const response = await fetchWithBasePath(`/api/projects/${projectId}`, {
         method: 'DELETE',
       });
 
@@ -196,7 +197,7 @@ export default function Home() {
                   <div
                     key={project.id}
                     className="relative p-6 bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 hover:border-purple-600 transition-all group cursor-pointer"
-                    onClick={() => router.push(`/projects/${project.id}`)}
+                    onClick={() => navigateWithBasePath(router, `/projects/${project.id}`)}
                   >
                     {/* Delete button */}
                     <button

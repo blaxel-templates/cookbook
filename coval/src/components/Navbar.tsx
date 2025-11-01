@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { withBasePath } from '@/lib/basePath';
 
 export default function Navbar() {
   return (
@@ -6,7 +9,7 @@ export default function Navbar() {
       {/* Logo & main navigation */}
       <div className="flex items-center gap-10">
         <Link
-          href="/"
+          href={withBasePath("/")}
           className="flex items-center gap-2 text-2xl font-semibold text-white hover:opacity-90 transition-opacity"
         >
           {/* AI Builder icon */}
@@ -17,4 +20,3 @@ export default function Navbar() {
     </nav>
   );
 }
-
