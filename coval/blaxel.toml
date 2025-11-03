@@ -1,0 +1,12 @@
+type = "agent"
+
+[[triggers]]
+id = "coval"
+type = "http"
+[triggers.configuration]
+path = "agents/coval"
+authenticationType = "public"
+
+[runtime]
+generation = "mk3"
+memory = 4096
