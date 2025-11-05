@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@blaxel/core':
-        specifier: ^0.2.47
-        version: 0.2.47(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))
+        specifier: ^0.2.48
+        version: 0.2.48(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))
       '@monaco-editor/react':
         specifier: ^4.6.0
         version: 4.7.0(monaco-editor@0.54.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -70,8 +70,8 @@ packages:
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
 
-  '@blaxel/core@0.2.47':
-    resolution: {integrity: sha512-RG8skubFdneXFtEcA7rsEPsL9GipKN1zntmQevjoHm+dxPFbEkUA61j5BqSaCxGlTLeuOrsWTfXR9wrokcoTwg==}
+  '@blaxel/core@0.2.48':
+    resolution: {integrity: sha512-hBYDb4gNRCme9PDcqJ2gS8TZE0bsXvQhn8xG+9P6opC92l8wklgUjnXT9RoXCWvd/xXY5UUwBiCfstWdAYoEdQ==}
     engines: {node: '>=18'}
 
   '@emnapi/core@1.4.5':
@@ -2730,7 +2730,7 @@ snapshots:
 
   '@alloc/quick-lru@5.2.0': {}
 
-  '@blaxel/core@0.2.47(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))':
+  '@blaxel/core@0.2.48(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.80.13(typescript@5.9.2))
       '@modelcontextprotocol/sdk': 1.20.2
