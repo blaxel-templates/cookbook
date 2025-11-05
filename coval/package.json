@@ -11,7 +11,7 @@
     "deploy-sandbox": "cd blaxel-custom-sandbox && bl deploy"
   },
   "dependencies": {
-    "@blaxel/core": "^0.2.46",
+    "@blaxel/core": "^0.2.47",
     "@monaco-editor/react": "^4.6.0",
     "next": "14.2.3",
     "react": "^18",
