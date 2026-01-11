@@ -15,7 +15,7 @@ echo "   Timeout: ${TIMEOUT}s"
 echo "   Port: ${PORT}"
 
 # Start npm run dev in background and capture its PID
-npm run dev &
+npm run dev -- --port 3000 &
 DEV_PID=$!
 
 # Function to cleanup on exit

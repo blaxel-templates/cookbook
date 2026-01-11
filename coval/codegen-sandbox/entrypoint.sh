@@ -38,7 +38,7 @@ wait_for_port 12345
 # Do some execution here
 # Example
 echo "Running Next.js dev server..."
-curl http://localhost:8080/process -X POST -d '{"name": "dev-server", "workingDir": "/app", "command": "npm run dev", "waitForCompletion": false}' -H "Content-Type: application/json"
+curl http://localhost:8080/process -X POST -d '{"name": "dev-server", "workingDir": "/app", "command": "npm run dev -- --port 3000", "waitForCompletion": false}' -H "Content-Type: application/json"
 
 
 wait
