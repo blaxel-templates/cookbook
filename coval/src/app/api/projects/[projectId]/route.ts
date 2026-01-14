@@ -10,10 +10,11 @@ export const revalidate = 0;
 // GET /api/projects/[projectId] - Get project details
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const project = getProject(params.projectId);
+    const { projectId } = await params;
+    const project = getProject(projectId);
 
     if (!project) {
       return NextResponse.json(
@@ -34,11 +35,12 @@ export async function GET(
 // DELETE /api/projects/[projectId] - Delete project and associated sandbox
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const { projectId } = await params;
     // Get project to check if it has a sandbox
-    const project = getProject(params.projectId);
+    const project = getProject(projectId);
 
     if (!project) {
       return NextResponse.json(
@@ -73,7 +75,7 @@ export async function DELETE(
     }
 
     // Delete project from database
-    const success = deleteProject(params.projectId);
+    const success = deleteProject(projectId);
 
     if (!success) {
       return NextResponse.json(

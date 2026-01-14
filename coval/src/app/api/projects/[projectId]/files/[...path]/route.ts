@@ -9,10 +9,11 @@ export const revalidate = 0;
 // GET /api/projects/[projectId]/files/[...path] - Read file content
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string; path: string[] } }
+  { params }: { params: Promise<{ projectId: string; path: string[] }> }
 ) {
   try {
-    const project = getProject(params.projectId);
+    const { projectId, path } = await params;
+    const project = getProject(projectId);
 
     if (!project) {
       return NextResponse.json(
@@ -36,7 +37,7 @@ export async function GET(
     );
 
     // Construct file path
-    const filePath = '/' + params.path.join('/');
+    const filePath = '/' + path.join('/');
 
     // Read file content
     const content = await sandbox.fs.read(filePath);

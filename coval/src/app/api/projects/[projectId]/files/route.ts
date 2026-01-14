@@ -9,10 +9,11 @@ export const revalidate = 0;
 // GET /api/projects/[projectId]/files - List files from sandbox
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const project = getProject(params.projectId);
+    const { projectId } = await params;
+    const project = getProject(projectId);
 
     if (!project) {
       return NextResponse.json(
