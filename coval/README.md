@@ -57,6 +57,9 @@ npm run dev
 
 ### Deploy to Blaxel
 
+The Dockerfile builds a Next.js standalone image that uses `PORT` and `HOST` environment variables to configure the server.
+When deployed on Blaxel, these variables are automatically set by the platform.
+
 ```bash
 # Deploy the app
 bl deploy

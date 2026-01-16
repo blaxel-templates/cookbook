@@ -37,7 +37,7 @@ class SandboxCache {
     // Create new instance
     let sandbox: SandboxInstance;
     if (forceUrl) {
-      sandbox = new SandboxInstance({ forceUrl });
+      sandbox = new SandboxInstance({ forceUrl, metadata: { name: sandboxId }, spec: {}});
     } else {
       sandbox = await SandboxInstance.get(sandboxId);
     }
