@@ -1,4 +1,5 @@
 type = "agent"
+public = true
 
 [[triggers]]
 id = "coval"
