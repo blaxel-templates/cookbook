@@ -1,6 +1,7 @@
-import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core";
-import { blModel, blTools } from "@blaxel/mastra";
-import { Agent } from "@mastra/core/agent";
+import Anthropic from "@anthropic-ai/sdk";
+import { SandboxCreateConfiguration, SandboxInstance, settings } from "@blaxel/core";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { fetchGitHubPRData, formatPRMetadata, parsePRUrl } from "./github";
 import { Stream } from "./types";
 
@@ -19,6 +20,33 @@ async function getCloneProcess(stream: Stream, sandbox: SandboxInstance) {
   }
   throw new Error("Clone process timed out");
 }
+
+// Convert MCP tools to Anthropic format
+function convertMCPToolsToAnthropic(mcpTools: any[]): Anthropic.Tool[] {
+  return mcpTools.map(tool => ({
+    name: tool.name,
+    description: tool.description || "",
+    input_schema: tool.inputSchema || { type: "object", properties: {} }
+  }));
+}
+
+// Execute tool calls via MCP
+async function executeToolCall(
+  mcpClient: Client,
+  toolName: string,
+  toolInput: any
+): Promise<any> {
+  try {
+    const result = await mcpClient.callTool({
+      name: toolName,
+      arguments: toolInput
+    });
+    return result;
+  } catch (error: any) {
+    return { error: error.message };
+  }
+}
+
 export default async function agent(
   input: string,
   stream: Stream
@@ -36,6 +64,7 @@ export default async function agent(
   // Handle PR analysis
   const prUrl = prUrlMatch[0];
   let sandbox: SandboxInstance | null = null;
+  let mcpClient: Client | null = null;
   const sandboxName = `pr-analysis-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
   try {
@@ -125,20 +154,40 @@ export default async function agent(
       stream.write(`✅ Checkout result: ${result.logs} \n`);
     }
 
-    // Create the review agent with sandbox tools
-    stream.write(`🧠 Starting PR analysis... \n`);
+    // Connect to sandbox via MCP
+    stream.write(`🔌 Connecting to sandbox via MCP... \n`);
+    const mcpUrl = `${sandbox.metadata.url}/mcp`;
+    console.info(`Connecting to MCP: ${mcpUrl}`);
+    
+    mcpClient = new Client({
+      name: "pr-review-client",
+      version: "1.0.0",
+    });
 
-    const tools = await blTools([`sandboxes/${sandboxName}`]);
-    // Remove "codegen" tools since we don't need them
-    const filteredTools = Object.fromEntries(
-      Object.entries(tools).filter(([key]) => !key.startsWith('codegen'))
-    );
+    const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
+      requestInit: { headers: settings.headers },
+    });
 
-    const reviewAgent = new Agent({
-      name: "pr-reviewer",
-      model: await blModel("sandbox-openai"),
-      tools: filteredTools,
-      instructions: `You are a senior software engineer conducting a focused code review for GitHub PR #${prInfo.prNumber} in ${prInfo.owner}/${prInfo.repo}.
+    await mcpClient.connect(transport);
+    console.info(`✅ MCP connection established`);
+    stream.write(`✅ MCP connected \n`);
+
+    // Get available tools from MCP
+    const mcpToolsResult = await mcpClient.listTools();
+    const mcpTools = mcpToolsResult.tools || [];
+    console.info(`Available tools (${mcpTools.length}): ${mcpTools.map((t: any) => t.name).join(', ')}`);
+    stream.write(`🔧 Available tools: ${mcpTools.length} \n`);
+
+    // Convert MCP tools to Anthropic format
+    const anthropicTools = convertMCPToolsToAnthropic(mcpTools);
+
+    // Initialize Anthropic client
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+
+    // Create the system prompt for PR analysis
+    const systemPrompt = `You are a senior software engineer conducting a focused code review for GitHub PR #${prInfo.prNumber} in ${prInfo.owner}/${prInfo.repo}.
 
 IMPORTANT: You are connected to a sandbox environment with the repository already cloned to /app/repository.
 ${prData && prData.head.repo ? `The repository is cloned from ${prData.head.repo.full_name !== prData.base.repo.full_name ? 'the fork' : 'the base repository'} at commit ${prData.head.sha}.` : ''}
@@ -190,34 +239,86 @@ Write a comprehensive 3-5 paragraph summary including:
 ## METRICS
 - Files Changed: ${prData?.changed_files || 0}
 - Lines Added: ${prData?.additions || 0}
-- Lines Removed: ${prData?.deletions || 0}`,
-    });
+- Lines Removed: ${prData?.deletions || 0}`;
 
-    // Perform the analysis
+    // Start the analysis
     const analysisPrompt = `Please analyze this GitHub PR. The repository is already cloned in the sandbox at /app/repository. Focus on the changed files and provide a structured review.`;
 
-    const response = await reviewAgent.stream([{ role: "user", content: analysisPrompt }]);
+    stream.write(`🧠 Starting PR analysis... \n`);
+    console.info("🔍 Analyzing PR...");
 
-    console.info("🔍 Analyzing PR...")
-    stream.write(`🔍 Analyzing PR... \n`);
-    for await (const delta of response.fullStream) {
-      switch (delta.type) {
-        case 'error':
-          stream.write(`❌ Error: ${delta.error} \n`);
-          break;
-        case 'tool-call':
-          stream.write(`Calling tool ${delta.toolName}... \n`);
-          break;
-        case 'text-delta':
-          stream.write(delta.textDelta);
-          break;
+    // Manual tool calling loop
+    const messages: Anthropic.MessageParam[] = [
+      { role: "user", content: analysisPrompt }
+    ];
+
+    let continueLoop = true;
+    while (continueLoop) {
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8000,
+        system: systemPrompt,
+        messages,
+        tools: anthropicTools,
+      });
+
+      // Process the response
+      for (const content of response.content) {
+        if (content.type === "text") {
+          stream.write(content.text);
+        } else if (content.type === "tool_use") {
+          // Execute tool call via MCP
+          console.info(`Calling tool: ${content.name}`);
+          stream.write(`\nCalling tool ${content.name}... \n`);
+          
+          const toolResult = await executeToolCall(mcpClient, content.name, content.input);
+          
+          // Add assistant message with tool use
+          messages.push({
+            role: "assistant",
+            content: response.content
+          });
+
+          // Add tool result
+          messages.push({
+            role: "user",
+            content: [{
+              type: "tool_result",
+              tool_use_id: content.id,
+              content: JSON.stringify(toolResult)
+            }]
+          });
+
+          break; // Break to continue the loop
+        }
+      }
+
+      // Check if we should continue
+      if (response.stop_reason === "end_turn" || response.stop_reason === "max_tokens") {
+        continueLoop = false;
+      } else if (response.stop_reason === "tool_use") {
+        // Continue loop to process tool results
+        continueLoop = true;
+      } else {
+        continueLoop = false;
       }
     }
+
     console.info("🎉 Analysis complete!");
-    // stream.write(` \n🎉 Analysis complete! \n`);
   } catch (error: any) {
     stream.write(`❌ Error: ${error.message} \n`);
+    console.error("Error:", error);
   } finally {
+    // Clean up MCP connection
+    if (mcpClient) {
+      try {
+        await mcpClient.close();
+        console.info("✅ MCP connection closed");
+      } catch (cleanupError) {
+        console.warn("⚠️ Failed to close MCP connection:", cleanupError);
+      }
+    }
+
     // Clean up sandbox
     if (sandbox) {
       try {

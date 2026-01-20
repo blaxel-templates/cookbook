@@ -8,12 +8,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js 18+](https://img.shields.io/badge/node-18+-blue.svg)](https://nodejs.org/downloads/)
-[![Mastra](https://img.shields.io/badge/Mastra-powered-brightgreen.svg)](https://mastra.ai/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-enabled-blue.svg)](https://www.typescriptlang.org/)
 
 </div>
 
-An AI-powered GitHub pull request analysis tool that provides comprehensive code reviews using advanced AI capabilities and Blaxel sandbox environments.
+An AI-powered GitHub pull request analysis tool that provides comprehensive code reviews using Claude 4.5 (via Anthropic SDK) and Blaxel sandbox environments with MCP (Model Context Protocol) integration.
 
 **Important information**: This repository has been entirely vibe coded
 
@@ -39,12 +38,12 @@ An AI-powered GitHub pull request analysis tool that provides comprehensive code
 
 ## ✨ Features
 
-- **AI-Powered Analysis**: Leverages advanced AI capabilities for thorough code review
+- **Claude 4.5 Integration**: Uses Anthropic's latest Claude model for intelligent code analysis
+- **MCP Protocol**: Direct integration with sandbox tools via Model Context Protocol
 - **Secure Sandbox Environment**: Uses Blaxel sandboxes for safe code execution and analysis
 - **Comprehensive Reviews**: Covers code quality, security, performance, and best practices
 - **Real-time Progress**: Stream analysis progress with detailed logging
-- **Beautiful Interface**: Modern, responsive UI with intuitive design
-- **Mastra Integration**: Built on Mastra framework for sophisticated AI workflow automation
+- **Simple Architecture**: Direct API integration without complex abstraction layers
 - **TypeScript Support**: Full type safety and enhanced developer experience
 
 ## 🚀 Quick Start
@@ -62,8 +61,8 @@ An AI-powered GitHub pull request analysis tool that provides comprehensive code
 
 3. **Set up environment variables**
    ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
+   # Create a .env file with your API keys
+   echo "ANTHROPIC_API_KEY=your_key_here" > .env
    ```
 
 4. **Deploy custom sandbox template to Blaxel**
@@ -73,12 +72,15 @@ An AI-powered GitHub pull request analysis tool that provides comprehensive code
      npm run deploy-sandbox
      ```
 
-   - Check deployment status
+   - Check deployment status and get the image name
      ```bash
      bl get sandbox custom-sandbox --watch
      ```
 
-   - Copy the image name and paste it to .env
+   - Add the image name to your .env file
+     ```bash
+     echo "SANDBOX_IMAGE=custom-sandbox" >> .env
+     ```
 
 5. **Run the development server**
    ```bash
@@ -87,7 +89,7 @@ An AI-powered GitHub pull request analysis tool that provides comprehensive code
 
 6. **Test your agent**
    ```bash
-   bl chat --local blaxel-agent
+   bl run agent pr-review-agent --local --data '{"inputs": "https://github.com/owner/repo/pull/123"}'
    ```
 
 ## 📋 Prerequisites
@@ -119,17 +121,36 @@ npm install
 Create a `.env` file with the following variables:
 
 ```env
-# GitHub API Token
-# Optional: only needed to analyze your private repositories
+# Anthropic API Key (REQUIRED)
+# Get your API key from: https://console.anthropic.com/
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# GitHub API Token (OPTIONAL)
+# Only needed to analyze private repositories or avoid rate limits
+# Create a token at: https://github.com/settings/tokens
 GITHUB_TOKEN=your_github_token_here
 
-# Blaxel API Configuration
-# Optional: If you have logged in using blaxel cli
+# Blaxel API Configuration (OPTIONAL)
+# If you have logged in using blaxel cli (bl login), this is automatically configured
 BL_API_KEY=your_blaxel_api_key_here
 
-# Optional: Custom sandbox image
-SANDBOX_IMAGE=blaxel/prod-base:latest
+# Blaxel Region (OPTIONAL)
+# Default region for sandbox creation (e.g., us-pdx-1, eu-west-1)
+BL_REGION=us-pdx-1
+
+# Custom Sandbox Image (OPTIONAL)
+# Default: prod/main/sandbox/custom-sandbox:latest
+SANDBOX_IMAGE=custom-sandbox:latest
 ```
+
+**Required:**
+- `ANTHROPIC_API_KEY`: Get your API key from [Anthropic Console](https://console.anthropic.com/)
+
+**Optional:**
+- `GITHUB_TOKEN`: For private repositories or higher rate limits
+- `BL_API_KEY`: If not using `bl login`
+- `BL_REGION`: Specify sandbox region
+- `SANDBOX_IMAGE`: Custom sandbox image path
 
 ## 🔧 Usage
 
@@ -145,17 +166,24 @@ _Note:_ This command starts the server and enables hot reload so that changes to
 
 ### Testing your agent
 
-You can test your agent using the chat interface:
+Test your agent by providing a GitHub PR URL as input:
 
 ```bash
-bl chat --local blaxel-agent
+bl run agent pr-review-agent --local --data '{"inputs": "https://github.com/owner/repo/pull/123"}'
 ```
 
-Or run it directly with specific input:
+**Input format:**
+- The `inputs` field must contain a valid GitHub PR URL
+- Format: `https://github.com/OWNER/REPO/pull/NUMBER`
+- Example: `https://github.com/facebook/react/pull/12345`
 
-```bash
-bl run agent blaxel-agent --local --data '{"inputs": "https://github.com/user/repo/pull/123"}'
-```
+The agent will:
+1. Fetch PR metadata from GitHub API
+2. Create a Blaxel sandbox environment
+3. Clone the repository and checkout the PR branch
+4. Connect to the sandbox via MCP
+5. Use Claude 4.5 to analyze the code changes
+6. Stream the analysis results back to you
 
 ### Deploying to Blaxel
 
@@ -174,15 +202,30 @@ This command uses your code and the configuration files under the `.blaxel` dire
 
 The application consists of:
 
-1. **Agent Core**: Mastra-powered agent for orchestrating PR analysis workflows
-2. **Sandbox Integration**: Blaxel SDK for secure code execution and analysis
-3. **AI Analysis**: Advanced AI capabilities for comprehensive code review
+1. **Anthropic Claude 4.5**: Direct integration with Claude API for intelligent code analysis
+2. **MCP (Model Context Protocol)**: Connect Claude to sandbox tools for code inspection
+3. **Sandbox Integration**: Blaxel SDK for secure code execution and analysis
 4. **GitHub Integration**: Direct integration with GitHub API for PR data retrieval
+
+**Architecture Flow:**
+```
+GitHub PR URL → Fetch PR Data → Create Sandbox → Clone Repository → 
+Connect MCP → Claude Analysis (with tool calling loop) → Stream Results
+```
+
+The agent implements a manual tool calling loop:
+1. Send analysis request to Claude with MCP tools
+2. Claude decides which tools to use (file read, execute commands, etc.)
+3. Execute tool calls via MCP client
+4. Send results back to Claude
+5. Repeat until analysis is complete
 
 ## 🔑 Key Components
 
-- `src/index.ts` - Application entry point and server setup
-- `src/agent.ts` - Core agent implementation with Mastra integration
+- `src/index.ts` - Application entry point and Fastify server setup
+- `src/agent.ts` - Core agent implementation with Anthropic SDK and MCP client
+- `src/github.ts` - GitHub API integration for fetching PR data
+- `src/types.ts` - TypeScript type definitions
 - `custom-sandbox/` - Blaxel custom sandbox configuration for secure execution
 
 ## 💻 Development
@@ -192,8 +235,10 @@ The application consists of:
 pr-review-agent/
 ├── src/
 │   ├── index.ts           # Application entry point
-│   ├── agent.ts           # Core agent implementation
-├── custom-sandbox/ # Blaxel sandbox configuration
+│   ├── agent.ts           # Core agent implementation (Anthropic + MCP)
+│   ├── github.ts          # GitHub API integration
+│   └── types.ts           # TypeScript type definitions
+├── custom-sandbox/        # Blaxel sandbox configuration
 ├── package.json           # Node.js package configuration
 ├── tsconfig.json          # TypeScript configuration
 └── blaxel.toml            # Blaxel deployment configuration
@@ -203,9 +248,10 @@ pr-review-agent/
 
 ### Common Issues
 
-1. **Blaxel Platform Issues**:
-   - Ensure you're logged in to your workspace: `bl login`
-   - Verify models are available: `bl get models`
+1. **API Key Issues**:
+   - Ensure your `ANTHROPIC_API_KEY` is set in `.env`
+   - Verify your Anthropic API key is valid at https://console.anthropic.com/
+   - Check you're logged in to Blaxel: `bl login`
 
 2. **Node.js Version Issues**:
    - Make sure you have Node.js 18+
