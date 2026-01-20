@@ -12,7 +12,7 @@
 
 </div>
 
-An AI-powered GitHub pull request analysis tool that provides comprehensive code reviews using Claude 4.5 (via Anthropic SDK) and Blaxel sandbox environments with MCP (Model Context Protocol) integration.
+An AI-powered GitHub pull request analysis tool that provides comprehensive code reviews using Claude 4.5 (via Vercel AI SDK) and Blaxel sandbox environments with MCP (Model Context Protocol) integration.
 
 **Important information**: This repository has been entirely vibe coded
 
@@ -38,12 +38,12 @@ An AI-powered GitHub pull request analysis tool that provides comprehensive code
 
 ## ✨ Features
 
-- **Claude 4.5 Integration**: Uses Anthropic's latest Claude model for intelligent code analysis
+- **Claude 4.5 Integration**: Uses Anthropic's latest Claude model via Vercel AI SDK
 - **MCP Protocol**: Direct integration with sandbox tools via Model Context Protocol
+- **Vercel AI SDK**: Simplified tool calling and streaming with automatic multi-step execution
 - **Secure Sandbox Environment**: Uses Blaxel sandboxes for safe code execution and analysis
 - **Comprehensive Reviews**: Covers code quality, security, performance, and best practices
 - **Real-time Progress**: Stream analysis progress with detailed logging
-- **Simple Architecture**: Direct API integration without complex abstraction layers
 - **TypeScript Support**: Full type safety and enhanced developer experience
 
 ## 🚀 Quick Start
@@ -202,31 +202,40 @@ This command uses your code and the configuration files under the `.blaxel` dire
 
 The application consists of:
 
-1. **Anthropic Claude 4.5**: Direct integration with Claude API for intelligent code analysis
-2. **MCP (Model Context Protocol)**: Connect Claude to sandbox tools for code inspection
+1. **Vercel AI SDK**: Simplified streaming and tool calling with Claude 4.5
+2. **@ai-sdk/mcp**: Standard MCP client for automatic tool conversion
 3. **Sandbox Integration**: Blaxel SDK for secure code execution and analysis
 4. **GitHub Integration**: Direct integration with GitHub API for PR data retrieval
 
 **Architecture Flow:**
 ```
 GitHub PR URL → Fetch PR Data → Create Sandbox → Clone Repository → 
-Connect MCP → Claude Analysis (with tool calling loop) → Stream Results
+@ai-sdk/mcp createMCPClient → Auto tool conversion → streamText → Stream Results
 ```
 
-The agent implements a manual tool calling loop:
-1. Send analysis request to Claude with MCP tools
-2. Claude decides which tools to use (file read, execute commands, etc.)
-3. Execute tool calls via MCP client
-4. Send results back to Claude
-5. Repeat until analysis is complete
+The standard approach using `@ai-sdk/mcp`:
+1. `createMCPClient()` connects to sandbox MCP server
+2. `await client.tools()` automatically converts MCP tools to Vercel AI SDK format
+3. `streamText()` handles the multi-step tool calling loop
+4. Claude analyzes code using sandbox tools transparently
+5. Results stream back in real-time
 
 ## 🔑 Key Components
 
 - `src/index.ts` - Application entry point and Fastify server setup
-- `src/agent.ts` - Core agent implementation with Anthropic SDK and MCP client
+- `src/agent.ts` - Core agent implementation with Vercel AI SDK and @ai-sdk/mcp
 - `src/github.ts` - GitHub API integration for fetching PR data
 - `src/types.ts` - TypeScript type definitions
 - `custom-sandbox/` - Blaxel custom sandbox configuration for secure execution
+
+## 📦 Dependencies
+
+- **@ai-sdk/anthropic** - Claude 4.5 model provider
+- **@ai-sdk/mcp** - Standard MCP client (automatic tool conversion)
+- **ai** - Vercel AI SDK for streaming and tool orchestration
+- **@blaxel/core** - Sandbox creation and management
+- **fastify** - Fast HTTP server framework
+- **zod** - Schema validation
 
 ## 💻 Development
 

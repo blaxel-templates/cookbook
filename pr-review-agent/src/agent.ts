@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic } from "@ai-sdk/anthropic";
+import { createMCPClient } from "@ai-sdk/mcp";
 import { SandboxCreateConfiguration, SandboxInstance, settings } from "@blaxel/core";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { stepCountIs, streamText } from "ai";
 import { fetchGitHubPRData, formatPRMetadata, parsePRUrl } from "./github";
 import { Stream } from "./types";
 
@@ -21,31 +21,6 @@ async function getCloneProcess(stream: Stream, sandbox: SandboxInstance) {
   throw new Error("Clone process timed out");
 }
 
-// Convert MCP tools to Anthropic format
-function convertMCPToolsToAnthropic(mcpTools: any[]): Anthropic.Tool[] {
-  return mcpTools.map(tool => ({
-    name: tool.name,
-    description: tool.description || "",
-    input_schema: tool.inputSchema || { type: "object", properties: {} }
-  }));
-}
-
-// Execute tool calls via MCP
-async function executeToolCall(
-  mcpClient: Client,
-  toolName: string,
-  toolInput: any
-): Promise<any> {
-  try {
-    const result = await mcpClient.callTool({
-      name: toolName,
-      arguments: toolInput
-    });
-    return result;
-  } catch (error: any) {
-    return { error: error.message };
-  }
-}
 
 export default async function agent(
   input: string,
@@ -64,7 +39,7 @@ export default async function agent(
   // Handle PR analysis
   const prUrl = prUrlMatch[0];
   let sandbox: SandboxInstance | null = null;
-  let mcpClient: Client | null = null;
+  let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
   const sandboxName = `pr-analysis-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
   try {
@@ -154,37 +129,27 @@ export default async function agent(
       stream.write(`✅ Checkout result: ${result.logs} \n`);
     }
 
-    // Connect to sandbox via MCP
+    // Connect to sandbox via MCP using standard @ai-sdk/mcp
     stream.write(`🔌 Connecting to sandbox via MCP... \n`);
     const mcpUrl = `${sandbox.metadata.url}/mcp`;
     console.info(`Connecting to MCP: ${mcpUrl}`);
     
-    mcpClient = new Client({
-      name: "pr-review-client",
-      version: "1.0.0",
+    mcpClient = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: mcpUrl,
+        headers: settings.headers,
+      },
     });
 
-    const transport = new StreamableHTTPClientTransport(new URL(mcpUrl), {
-      requestInit: { headers: settings.headers },
-    });
-
-    await mcpClient.connect(transport);
     console.info(`✅ MCP connection established`);
     stream.write(`✅ MCP connected \n`);
 
-    // Get available tools from MCP
-    const mcpToolsResult = await mcpClient.listTools();
-    const mcpTools = mcpToolsResult.tools || [];
-    console.info(`Available tools (${mcpTools.length}): ${mcpTools.map((t: any) => t.name).join(', ')}`);
-    stream.write(`🔧 Available tools: ${mcpTools.length} \n`);
-
-    // Convert MCP tools to Anthropic format
-    const anthropicTools = convertMCPToolsToAnthropic(mcpTools);
-
-    // Initialize Anthropic client
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    // Get tools from MCP - automatic conversion to Vercel AI SDK format!
+    const aiTools = await mcpClient.tools();
+    const toolCount = Object.keys(aiTools).length;
+    console.info(`Available tools (${toolCount}): ${Object.keys(aiTools).join(', ')}`);
+    stream.write(`🔧 Available tools: ${toolCount} \n`);
 
     // Create the system prompt for PR analysis
     const systemPrompt = `You are a senior software engineer conducting a focused code review for GitHub PR #${prInfo.prNumber} in ${prInfo.owner}/${prInfo.repo}.
@@ -247,61 +212,18 @@ Write a comprehensive 3-5 paragraph summary including:
     stream.write(`🧠 Starting PR analysis... \n`);
     console.info("🔍 Analyzing PR...");
 
-    // Manual tool calling loop
-    const messages: Anthropic.MessageParam[] = [
-      { role: "user", content: analysisPrompt }
-    ];
+    // Use Vercel AI SDK streamText with tools
+    const result = streamText({
+      model: anthropic("claude-sonnet-4-20250514"),
+      system: systemPrompt,
+      prompt: analysisPrompt,
+      tools: aiTools,
+      stopWhen: stepCountIs(10), // Allow multiple tool calls (v6 API)
+    });
 
-    let continueLoop = true;
-    while (continueLoop) {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8000,
-        system: systemPrompt,
-        messages,
-        tools: anthropicTools,
-      });
-
-      // Process the response
-      for (const content of response.content) {
-        if (content.type === "text") {
-          stream.write(content.text);
-        } else if (content.type === "tool_use") {
-          // Execute tool call via MCP
-          console.info(`Calling tool: ${content.name}`);
-          stream.write(`\nCalling tool ${content.name}... \n`);
-          
-          const toolResult = await executeToolCall(mcpClient, content.name, content.input);
-          
-          // Add assistant message with tool use
-          messages.push({
-            role: "assistant",
-            content: response.content
-          });
-
-          // Add tool result
-          messages.push({
-            role: "user",
-            content: [{
-              type: "tool_result",
-              tool_use_id: content.id,
-              content: JSON.stringify(toolResult)
-            }]
-          });
-
-          break; // Break to continue the loop
-        }
-      }
-
-      // Check if we should continue
-      if (response.stop_reason === "end_turn" || response.stop_reason === "max_tokens") {
-        continueLoop = false;
-      } else if (response.stop_reason === "tool_use") {
-        // Continue loop to process tool results
-        continueLoop = true;
-      } else {
-        continueLoop = false;
-      }
+    // Stream the response
+    for await (const delta of result.textStream) {
+      stream.write(delta);
     }
 
     console.info("🎉 Analysis complete!");

@@ -14,15 +14,15 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
+    "@ai-sdk/anthropic": "^3.0.17",
+    "@ai-sdk/mcp": "^1.0.11",
     "@blaxel/core": "0.2.60",
     "@blaxel/telemetry": "0.2.60",
-    "@modelcontextprotocol/sdk": "^1.25.3",
+    "ai": "^6.0.42",
     "fastify": "^5.7.1",
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
     "@types/node": "^25.0.9",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
