@@ -21,10 +21,22 @@ async function main() {
 
   app.post<{ Body: RequestBody }>("/", async (request, reply) => {
     try {
+      // Set headers to disable proxy/CDN buffering (CloudFront, nginx, etc.)
+      reply.raw.writeHead(200, {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no", // Disables nginx buffering
+        "Connection": "keep-alive",
+      });
       await agent(request.body.inputs, reply.raw);
     } catch (error: any) {
       console.error(error);
-      return reply.status(500).send(error.stack);
+      // If headers already sent, we can't change status
+      if (!reply.raw.headersSent) {
+        return reply.status(500).send(error.stack);
+      }
+      reply.raw.end(`\n❌ Error: ${error.stack}`);
     }
   });
   const port = parseInt(env.PORT || "80");
