@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PR Review Agent - AI-Powered GitHub PR Analysis",
-  description: "Analyze GitHub pull requests with AI-powered code review",
+  title: "Blaxel App Generator - Build Apps with AI",
+  description: "Generate full-stack applications instantly with AI, powered by Blaxel's perpetual sandbox platform",
 };
 
 export default function RootLayout({

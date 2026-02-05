@@ -29,17 +29,18 @@ wait_for_port() {
 # Wait for port 8080 to be available
 wait_for_port 8080
 
-# Execute curl command
-echo "Running ttyd server..."
-curl http://localhost:8080/process -X POST -d '{"name": "ttyd-server", "command": "ttyd --writable --port 12345 /bin/sh", "waitForCompletion": false}' -H "Content-Type: application/json"
-wait_for_port 12345
-
-
-# Do some execution here
-# Example
-echo "Running Next.js dev server..."
-curl http://localhost:8080/process -X POST -d '{"name": "dev-server", "workingDir": "/app", "command": "npm run dev -- --port 3000", "waitForCompletion": false}' -H "Content-Type: application/json"
-
+# Execute curl command to start Astro dev server
+echo "Running Astro dev server..."
+curl http://localhost:8080/process \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "dev-server",
+    "workingDir": "/app",
+    "command": "bun run dev -- --host 0.0.0.0 --port 4321",
+    "waitForCompletion": false,
+    "restartOnFailure": true,
+    "maxRestarts": 25
+  }'
 
 wait
-

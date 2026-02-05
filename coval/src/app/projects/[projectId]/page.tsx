@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter, useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import Link from "next/link";
 import { fetchWithBasePath, navigateWithBasePath, withBasePath } from "@/lib/basePath";
@@ -22,9 +22,12 @@ export default function ProjectPage() {
   const params = useParams();
   const projectId = params.projectId as string;
   const description = searchParams.get("desc");
+  const isNewProject = projectId === "new";
+  const [sandboxId, setSandboxId] = useState<string | null>(isNewProject ? null : projectId);
   const [logs, setLogs] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [ttydUrl, setTtydUrl] = useState<string | null>(null);
+  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [projectData, setProjectData] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -37,6 +40,7 @@ export default function ProjectPage() {
   const [isRefreshingFiles, setIsRefreshingFiles] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const hasStartedGenerationRef = useRef(false);
 
   const scrollToBottom = () => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -46,52 +50,112 @@ export default function ProjectPage() {
     scrollToBottom();
   }, [logs]);
 
-  // Fetch project data
+  // Fetch project data and state (skip for new projects)
   useEffect(() => {
-    const fetchProject = async () => {
+    if (isNewProject) return;
+
+    const fetchProjectAndState = async () => {
       try {
+        // Fetch project/sandbox data
         const response = await fetchWithBasePath(`/api/projects/${projectId}`, {
           cache: 'no-store',
         });
         if (response.ok) {
           const { project } = await response.json();
           setProjectData(project);
+          setSandboxId(project.sandboxId);
           if (project.previewUrl) setPreviewUrl(project.previewUrl);
-          if (project.ttydUrl) setTtydUrl(project.ttydUrl);
+          if (project.sessionUrl) setSessionUrl(project.sessionUrl);
+          if (project.sessionToken) setSessionToken(project.sessionToken);
+
+          // Fetch state from sandbox
+          const stateResponse = await fetchWithBasePath(`/api/projects/${projectId}/state`, {
+            cache: 'no-store',
+          });
+          if (stateResponse.ok) {
+            const { state } = await stateResponse.json();
+            // Load existing logs
+            if (state.logs && state.logs.length > 0) {
+              setLogs(state.logs);
+            }
+            // Update status based on state
+            if (state.status === 'in_progress') {
+              setCurrentStatus('In Progress');
+              // Note: We don't auto-resume here, user can click continue
+            } else if (state.status === 'completed') {
+              setCurrentStatus('Completed');
+              setIsComplete(true);
+            } else if (state.status === 'error') {
+              setCurrentStatus('Error');
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching project:', error);
       }
     };
-    fetchProject();
-  }, [projectId]);
+    fetchProjectAndState();
+  }, [projectId, isNewProject]);
 
-  // Fetch root files from sandbox on mount and when switching to code tab
+  // Refresh files from sandbox
+  const refreshFiles = useCallback(async (overrideSandboxId?: string) => {
+    const targetSandboxId = overrideSandboxId || sandboxId;
+    if (!targetSandboxId) return;
+    setIsRefreshingFiles(true);
+    try {
+      const response = await fetchWithBasePath(`/api/projects/${targetSandboxId}/files`, {
+        cache: 'no-store',
+      });
+      if (response.ok) {
+        const { files } = await response.json();
+
+        // All folders closed by default
+        const initFiles = (nodes: FileNode[]): FileNode[] => {
+          return nodes.map(node => ({
+            ...node,
+            isExpanded: false,
+            isLoading: false,
+            children: node.type === 'directory' ? [] : undefined,
+          }));
+        };
+
+        setFiles(initFiles(files));
+      }
+    } catch (error) {
+      console.error('Error refreshing files:', error);
+    } finally {
+      setIsRefreshingFiles(false);
+    }
+  }, [sandboxId]);
+
+  // Fetch root files from sandbox when switching to code tab
   useEffect(() => {
-    if (projectData?.sandboxId && activeTab === 'code') {
+    if (sandboxId && activeTab === 'code') {
       refreshFiles();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, projectData, activeTab]);
+  }, [activeTab, sandboxId, refreshFiles]);
 
+  // Auto-generate for new projects with description
   useEffect(() => {
-    // Only auto-generate if:
-    // 1. We have a description
-    // 2. Not currently generating
-    // 3. Project has no sandbox (never been generated)
-    if (description && !isGenerating && projectData && !projectData.sandboxId) {
+    // Guard against double execution in StrictMode
+    if (hasStartedGenerationRef.current) return;
+    
+    // For new projects: auto-generate when we have a description
+    // For existing projects: only auto-generate if no sandbox yet (shouldn't happen)
+    if (description && !isGenerating && (isNewProject || (projectData && !projectData.sandboxId))) {
+      hasStartedGenerationRef.current = true;
       startGeneration(description);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [description, projectData]);
+  }, [description, isNewProject, projectData]);
 
   const startGeneration = async (desc: string) => {
     setIsGenerating(true);
     setIsComplete(false);
     setCurrentStatus("Thinking");
 
-    // Add user request to logs if it's an update
-    if (projectData && projectData.sandboxId) {
+    // Add user request to logs if it's an update (not a new project)
+    if (sandboxId) {
       setLogs(prev => [...prev, `\n[USER REQUEST] ${desc}`]);
     }
 
@@ -103,7 +167,7 @@ export default function ProjectPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: desc,
-          projectId: projectId,
+          sandboxId: sandboxId, // null for new projects, sandbox ID for updates
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -151,6 +215,11 @@ export default function ProjectPage() {
           try {
             const parsed = JSON.parse(trimmed);
 
+            // Handle existing logs from sandbox state (sent at start of generation)
+            if (parsed.existingLogs && Array.isArray(parsed.existingLogs)) {
+              setLogs(parsed.existingLogs);
+            }
+
             if (parsed.log) {
               setLogs((prev) => [...prev, parsed.log]);
 
@@ -174,14 +243,29 @@ export default function ProjectPage() {
               setPreviewUrl(parsed.previewUrl);
             }
 
-            if (parsed.ttydUrl) {
-              setTtydUrl(parsed.ttydUrl);
+            if (parsed.sessionUrl) {
+              setSessionUrl(parsed.sessionUrl);
+            }
+
+            if (parsed.sessionToken) {
+              setSessionToken(parsed.sessionToken);
+            }
+
+            // Handle sandbox ID for new projects
+            let currentSandboxId = sandboxId;
+            if (parsed.sandboxId && !sandboxId) {
+              currentSandboxId = parsed.sandboxId;
+              setSandboxId(parsed.sandboxId);
+              // Redirect to the real sandbox URL (replace history so back button works correctly)
+              if (isNewProject) {
+                window.history.replaceState({}, '', withBasePath(`/projects/${parsed.sandboxId}`));
+              }
             }
 
             // Refresh files after updates
             if (parsed.type === "complete") {
               setTimeout(() => {
-                refreshFiles();
+                refreshFiles(currentSandboxId || undefined);
               }, 2000);
             }
 
@@ -248,9 +332,10 @@ export default function ProjectPage() {
       setFileContent("// Loading...");
 
       try {
+        if (!sandboxId) return;
         // Remove leading slash and split path
         const pathParts = node.path.replace(/^\//, '').split('/');
-        const response = await fetchWithBasePath(`/api/projects/${projectId}/files/${pathParts.join('/')}`, {
+        const response = await fetchWithBasePath(`/api/projects/${sandboxId}/files/${pathParts.join('/')}`, {
           cache: 'no-store',
         });
 
@@ -267,36 +352,9 @@ export default function ProjectPage() {
     }
   };
 
-  const refreshFiles = async () => {
-    setIsRefreshingFiles(true);
-    try {
-      const response = await fetchWithBasePath(`/api/projects/${projectId}/files`, {
-        cache: 'no-store',
-      });
-      if (response.ok) {
-        const { files } = await response.json();
-
-        // All folders closed by default
-        const initFiles = (nodes: FileNode[]): FileNode[] => {
-          return nodes.map(node => ({
-            ...node,
-            isExpanded: false,
-            isLoading: false,
-            children: node.type === 'directory' ? [] : undefined,
-          }));
-        };
-
-        setFiles(initFiles(files));
-      }
-    } catch (error) {
-      console.error('Error refreshing files:', error);
-    } finally {
-      setIsRefreshingFiles(false);
-    }
-  };
-
   const handleFolderClick = async (node: FileNode) => {
     if (node.type !== "directory") return;
+    if (!sandboxId) return;
 
     // If already expanded, just collapse it
     if (node.isExpanded) {
@@ -333,7 +391,7 @@ export default function ProjectPage() {
 
     try {
       // Fetch folder contents
-      const response = await fetchWithBasePath(`/api/projects/${projectId}/files?path=${encodeURIComponent(node.path)}`, {
+      const response = await fetchWithBasePath(`/api/projects/${sandboxId}/files?path=${encodeURIComponent(node.path)}`, {
         cache: 'no-store',
       });
 
@@ -405,7 +463,7 @@ export default function ProjectPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                 </svg>
               )}
-              <svg className={`${inSidebar ? 'w-3 h-3' : 'w-4 h-4'} text-blue-400`} fill="currentColor" viewBox="0 0 20 20">
+              <svg className={`${inSidebar ? 'w-3 h-3' : 'w-4 h-4'} text-orange-400`} fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
               </svg>
               <span className={`${inSidebar ? 'text-xs text-gray-400' : 'text-sm text-gray-300'}`}>{node.name}</span>
@@ -463,7 +521,7 @@ export default function ProjectPage() {
                     <div key={i} className="flex items-start gap-2 text-sm">
                       <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
                         entry.type === 'create' ? 'bg-green-400' :
-                        entry.type === 'update' ? 'bg-blue-400' :
+                        entry.type === 'update' ? 'bg-orange-400' :
                         'bg-red-400'
                       }`}></div>
                       <div>
@@ -477,8 +535,8 @@ export default function ProjectPage() {
                 </div>
               )}
 
-              <div className="p-4 bg-blue-950/20 border border-blue-800/30 rounded-lg">
-                <p className="text-blue-400 text-sm">
+              <div className="p-4 bg-orange-950/20 border border-orange-800/30 rounded-lg">
+                <p className="text-orange-400 text-sm">
                   Edit your project by describing what you&apos;d like to update.
                 </p>
               </div>
@@ -488,7 +546,7 @@ export default function ProjectPage() {
               {/* Status */}
               {isGenerating && (
                 <div className="flex items-center gap-2 text-gray-400">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
                   <span className="text-xs font-medium">{currentStatus}</span>
                 </div>
               )}
@@ -591,7 +649,7 @@ export default function ProjectPage() {
               onClick={() => setActiveTab("preview")}
               className={`p-2 rounded-md transition-all ${
                 activeTab === "preview"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-orange-600 text-white"
                   : "text-gray-400 hover:text-white hover:bg-gray-800"
               }`}
               title="Preview"
@@ -605,7 +663,7 @@ export default function ProjectPage() {
               onClick={() => setActiveTab("code")}
               className={`p-2 rounded-md transition-all ${
                 activeTab === "code"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-orange-600 text-white"
                   : "text-gray-400 hover:text-white hover:bg-gray-800"
               }`}
               title="Code"
@@ -618,10 +676,10 @@ export default function ProjectPage() {
               onClick={() => setActiveTab("terminal")}
               className={`p-2 rounded-md transition-all ${
                 activeTab === "terminal"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-orange-600 text-white"
                   : "text-gray-400 hover:text-white hover:bg-gray-800"
-              } ${!ttydUrl ? "opacity-50" : ""}`}
-              title={!ttydUrl ? "Terminal (pending)" : "Terminal"}
+              } ${!sessionUrl ? "opacity-50" : ""}`}
+              title={!sessionUrl ? "Terminal (pending)" : "Terminal"}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -643,7 +701,7 @@ export default function ProjectPage() {
             </button>
 
             {/* Divider */}
-            {((activeTab === "preview" && previewUrl) || (activeTab === "terminal" && ttydUrl)) && (
+            {((activeTab === "preview" && previewUrl) || (activeTab === "terminal" && sessionUrl)) && (
               <div className="h-6 w-px bg-gray-700"></div>
             )}
 
@@ -661,9 +719,9 @@ export default function ProjectPage() {
                 </svg>
               </a>
             )}
-            {activeTab === "terminal" && ttydUrl && (
+            {activeTab === "terminal" && sessionUrl && sessionToken && (
               <a
-                href={ttydUrl}
+                href={`${sessionUrl}/terminal?bl_preview_token=${sessionToken}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 text-gray-400 hover:text-white"
@@ -691,9 +749,8 @@ export default function ProjectPage() {
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-800">
                   <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
+                    <div className="w-12 h-12 border-4 border-orange-200/20 border-t-orange-500 rounded-full animate-spin mx-auto mb-3"></div>
                     <p className="text-lg font-medium">Setting up your app...</p>
-                    <p className="text-sm text-gray-500 mt-1">This usually takes 30-60 seconds</p>
                   </div>
                 </div>
               )}
@@ -706,7 +763,7 @@ export default function ProjectPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs font-semibold text-gray-400 uppercase">Files</div>
                     <button
-                      onClick={refreshFiles}
+                      onClick={() => refreshFiles()}
                       disabled={isRefreshingFiles}
                       className="p-1 text-gray-400 hover:text-white transition-all disabled:opacity-50"
                       title="Refresh files"
@@ -784,11 +841,12 @@ export default function ProjectPage() {
             </div>
           ) : (
             <div className="h-full bg-black">
-              {ttydUrl ? (
+              {sessionUrl && sessionToken ? (
                 <iframe
-                  src={ttydUrl}
+                  src={`${sessionUrl}/terminal?bl_preview_token=${sessionToken}`}
                   className="w-full h-full border-0"
                   title="Terminal"
+                  allow="clipboard-read; clipboard-write"
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-400">

@@ -11,8 +11,11 @@
     "deploy-sandbox": "cd blaxel-custom-sandbox && bl deploy"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "latest",
+    "@ai-sdk/mcp": "latest",
     "@blaxel/core": "latest",
     "@monaco-editor/react": "^4.6.0",
+    "ai": "latest",
     "next": "^16.1.1",
     "react": "^18",
     "react-dom": "^18",

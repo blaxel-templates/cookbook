@@ -1,4 +1,3 @@
-import { getProject } from "@/lib/database";
 import { sandboxCache } from "@/lib/sandbox-cache";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -13,26 +12,11 @@ export async function GET(
 ) {
   try {
     const { projectId, path } = await params;
-    const project = getProject(projectId);
-
-    if (!project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
-    }
-
-    if (!project.sandboxId) {
-      return NextResponse.json(
-        { error: "No sandbox associated with this project" },
-        { status: 400 }
-      );
-    }
-
-    // Get cached sandbox instance
     const isLocalSandbox = !!process.env.SANDBOX_FORCED_URL;
+
+    // Get cached sandbox instance (projectId is the sandboxId)
     const sandbox = await sandboxCache.get(
-      project.sandboxId,
+      projectId,
       isLocalSandbox ? process.env.SANDBOX_FORCED_URL : undefined
     );
 
@@ -54,4 +38,3 @@ export async function GET(
     );
   }
 }
-
