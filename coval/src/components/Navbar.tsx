@@ -28,7 +28,7 @@ export default function Navbar() {
           Docs
         </a>
         <a
-          href="https://blaxel.ai"
+          href="https://app.blaxel.ai"
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
