@@ -1,6 +1,7 @@
-import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core";
-import { blModel, blTools } from "@blaxel/mastra";
-import { Agent } from "@mastra/core/agent";
+import { anthropic } from "@ai-sdk/anthropic";
+import { createMCPClient } from "@ai-sdk/mcp";
+import { SandboxCreateConfiguration, SandboxInstance, settings } from "@blaxel/core";
+import { stepCountIs, streamText } from "ai";
 import { fetchGitHubPRData, formatPRMetadata, parsePRUrl } from "./github";
 import { Stream } from "./types";
 
@@ -19,6 +20,8 @@ async function getCloneProcess(stream: Stream, sandbox: SandboxInstance) {
   }
   throw new Error("Clone process timed out");
 }
+
+
 export default async function agent(
   input: string,
   stream: Stream
@@ -36,6 +39,7 @@ export default async function agent(
   // Handle PR analysis
   const prUrl = prUrlMatch[0];
   let sandbox: SandboxInstance | null = null;
+  let mcpClient: Awaited<ReturnType<typeof createMCPClient>> | null = null;
   const sandboxName = `pr-analysis-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
   try {
@@ -66,7 +70,7 @@ export default async function agent(
     }
 
     // Create sandbox
-    const image = process.env.SANDBOX_IMAGE || "prod/main/sandbox/custom-sandbox:latest";
+    const image = process.env.SANDBOX_IMAGE || "pr-review-sandbox:latest";
     console.info(`🏗️ Creating sandbox environment with image=${image}, repository=${repositoryUrl}, branch=${prData.head.ref}...`);
     stream.write(`🏗️ Creating sandbox environment with image=${image}, repository=${repositoryUrl}, branch=${prData.head.ref}... \n`);
 
@@ -125,20 +129,30 @@ export default async function agent(
       stream.write(`✅ Checkout result: ${result.logs} \n`);
     }
 
-    // Create the review agent with sandbox tools
-    stream.write(`🧠 Starting PR analysis... \n`);
+    // Connect to sandbox via MCP using standard @ai-sdk/mcp
+    stream.write(`🔌 Connecting to sandbox via MCP... \n`);
+    const mcpUrl = `${sandbox.metadata.url}/mcp`;
+    console.info(`Connecting to MCP: ${mcpUrl}`);
 
-    const tools = await blTools([`sandboxes/${sandboxName}`]);
-    // Remove "codegen" tools since we don't need them
-    const filteredTools = Object.fromEntries(
-      Object.entries(tools).filter(([key]) => !key.startsWith('codegen'))
-    );
+    mcpClient = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: mcpUrl,
+        headers: settings.headers,
+      },
+    });
 
-    const reviewAgent = new Agent({
-      name: "pr-reviewer",
-      model: await blModel("sandbox-openai"),
-      tools: filteredTools,
-      instructions: `You are a senior software engineer conducting a focused code review for GitHub PR #${prInfo.prNumber} in ${prInfo.owner}/${prInfo.repo}.
+    console.info(`✅ MCP connection established`);
+    stream.write(`✅ MCP connected \n`);
+
+    // Get tools from MCP - automatic conversion to Vercel AI SDK format!
+    const aiTools = await mcpClient.tools();
+    const toolCount = Object.keys(aiTools).length;
+    console.info(`Available tools (${toolCount}): ${Object.keys(aiTools).join(', ')}`);
+    stream.write(`🔧 Available tools: ${toolCount} \n`);
+
+    // Create the system prompt for PR analysis
+    const systemPrompt = `You are a senior software engineer conducting a focused code review for GitHub PR #${prInfo.prNumber} in ${prInfo.owner}/${prInfo.repo}.
 
 IMPORTANT: You are connected to a sandbox environment with the repository already cloned to /app/repository.
 ${prData && prData.head.repo ? `The repository is cloned from ${prData.head.repo.full_name !== prData.base.repo.full_name ? 'the fork' : 'the base repository'} at commit ${prData.head.sha}.` : ''}
@@ -190,34 +204,43 @@ Write a comprehensive 3-5 paragraph summary including:
 ## METRICS
 - Files Changed: ${prData?.changed_files || 0}
 - Lines Added: ${prData?.additions || 0}
-- Lines Removed: ${prData?.deletions || 0}`,
-    });
+- Lines Removed: ${prData?.deletions || 0}`;
 
-    // Perform the analysis
+    // Start the analysis
     const analysisPrompt = `Please analyze this GitHub PR. The repository is already cloned in the sandbox at /app/repository. Focus on the changed files and provide a structured review.`;
 
-    const response = await reviewAgent.stream([{ role: "user", content: analysisPrompt }]);
+    stream.write(`🧠 Starting PR analysis... \n`);
+    console.info("🔍 Analyzing PR...");
 
-    console.info("🔍 Analyzing PR...")
-    stream.write(`🔍 Analyzing PR... \n`);
-    for await (const delta of response.fullStream) {
-      switch (delta.type) {
-        case 'error':
-          stream.write(`❌ Error: ${delta.error} \n`);
-          break;
-        case 'tool-call':
-          stream.write(`Calling tool ${delta.toolName}... \n`);
-          break;
-        case 'text-delta':
-          stream.write(delta.textDelta);
-          break;
-      }
+    // Use Vercel AI SDK streamText with tools
+    const result = streamText({
+      model: anthropic("claude-sonnet-4-20250514"),
+      system: systemPrompt,
+      prompt: analysisPrompt,
+      tools: aiTools,
+      stopWhen: stepCountIs(10), // Allow multiple tool calls (v6 API)
+    });
+
+    // Stream the response
+    for await (const delta of result.textStream) {
+      stream.write(delta);
     }
+
     console.info("🎉 Analysis complete!");
-    // stream.write(` \n🎉 Analysis complete! \n`);
   } catch (error: any) {
     stream.write(`❌ Error: ${error.message} \n`);
+    console.error("Error:", error);
   } finally {
+    // Clean up MCP connection
+    if (mcpClient) {
+      try {
+        await mcpClient.close();
+        console.info("✅ MCP connection closed");
+      } catch (cleanupError) {
+        console.warn("⚠️ Failed to close MCP connection:", cleanupError);
+      }
+    }
+
     // Clean up sandbox
     if (sandbox) {
       try {

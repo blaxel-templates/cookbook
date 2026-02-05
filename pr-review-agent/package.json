@@ -1,7 +1,7 @@
 {
-  "name": "agent-mastra",
+  "name": "pr-review-agent",
   "version": "1.0.0",
-  "description": "Agent using Mastra",
+  "description": "Agent for reviewing pull requests",
   "main": "src/index.ts",
   "keywords": [],
   "license": "MIT",
@@ -10,24 +10,21 @@
     "start": "tsx src/index.ts",
     "prod": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "deploy-sandbox": "cd custom-sandbox && bl deploy",
+    "deploy-sandbox": "cd pr-review-sandbox && bl deploy",
     "build": "tsc"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^1.3.21",
+    "@ai-sdk/anthropic": "^3.0.17",
+    "@ai-sdk/mcp": "^1.0.11",
     "@blaxel/core": "latest",
-    "@blaxel/mastra": "latest",
     "@blaxel/telemetry": "latest",
-    "@mastra/core": "^0.6.4",
-    "ai": "^4.3.13",
-    "fastify": "^5.3.2",
-    "zod": "^3.24.4"
+    "ai": "^6.0.42",
+    "fastify": "^5.7.1",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/express": "^5.0.1",
-    "@types/node": "^22.15.9",
-    "mastra": "^0.4.9",
-    "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "@types/node": "^25.0.9",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }
