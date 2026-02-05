@@ -2,7 +2,7 @@
 
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fetchWithBasePath, navigateWithBasePath } from "@/lib/basePath";
 
 export default function Home() {
@@ -10,6 +10,24 @@ export default function Home() {
   const [projectDescription, setProjectDescription] = useState("");
   const [existingProjects, setExistingProjects] = useState<any[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(true);
+  const projectsSectionRef = useRef<HTMLDivElement>(null);
+
+  // Hide scroll indicator on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 50) {
+        setShowScrollIndicator(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToProjects = () => {
+    setShowScrollIndicator(false);
+    projectsSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   // Load existing projects
   useEffect(() => {
@@ -73,7 +91,7 @@ export default function Home() {
       {/* Content */}
       <div className="relative z-10 px-4 sm:px-6 lg:px-8">
         {/* Hero Section Container */}
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
+        <div className="relative flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
           <div className="max-w-4xl mx-auto text-center">
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full bg-white/5 border border-white/10 text-sm">
@@ -162,11 +180,24 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* Scroll indicator when projects exist */}
+          {existingProjects.length > 0 && showScrollIndicator && (
+            <button
+              onClick={scrollToProjects}
+              className="mt-12 flex flex-col items-center gap-2 animate-bounce hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <span className="text-xs text-gray-500">Your projects</span>
+              <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Existing Projects Section */}
         {existingProjects.length > 0 && (
-          <div className="w-full py-20">
+          <div ref={projectsSectionRef} className="w-full py-20">
             <div className="max-w-6xl mx-auto">
               <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold text-white mb-3">Your Projects</h2>
