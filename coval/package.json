@@ -13,10 +13,12 @@
   "dependencies": {
     "@ai-sdk/anthropic": "latest",
     "@ai-sdk/mcp": "latest",
+    "@ai-sdk/openai": "^3.0.28",
     "@blaxel/core": "latest",
     "@monaco-editor/react": "^4.6.0",
     "ai": "latest",
     "next": "^16.1.1",
+    "puppeteer": "^24.37.3",
     "react": "^18",
     "react-dom": "^18",
     "react-markdown": "^10.1.0",

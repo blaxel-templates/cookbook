@@ -19,31 +19,25 @@ class SandboxCache {
   /**
    * Get or create a sandbox instance
    */
-  async get(sandboxId: string, forceUrl?: string): Promise<SandboxInstance> {
-    const cacheKey = forceUrl || sandboxId;
+  async get(sandboxId: string): Promise<SandboxInstance> {
     const now = Date.now();
 
     // Check if we have a cached instance
-    const cached = this.cache.get(cacheKey);
+    const cached = this.cache.get(sandboxId);
     if (cached) {
       // Update last accessed time
       cached.lastAccessed = now;
-      console.log(`[SandboxCache] Cache HIT for ${cacheKey}`);
+      console.log(`[SandboxCache] Cache HIT for ${sandboxId}`);
       return cached.sandbox;
     }
 
-    console.log(`[SandboxCache] Cache MISS for ${cacheKey}`);
+    console.log(`[SandboxCache] Cache MISS for ${sandboxId}`);
 
-    // Create new instance
-    let sandbox: SandboxInstance;
-    if (forceUrl) {
-      sandbox = new SandboxInstance({ forceUrl, metadata: { name: sandboxId }, spec: {}});
-    } else {
-      sandbox = await SandboxInstance.get(sandboxId);
-    }
+    // Get existing sandbox instance
+    const sandbox = await SandboxInstance.get(sandboxId);
 
     // Store in cache
-    this.cache.set(cacheKey, {
+    this.cache.set(sandboxId, {
       sandbox,
       lastAccessed: now,
     });
@@ -54,16 +48,15 @@ class SandboxCache {
   /**
    * Manually set a sandbox instance in cache
    */
-  set(sandboxId: string, sandbox: SandboxInstance, forceUrl?: string): void {
-    const cacheKey = forceUrl || sandboxId;
+  set(sandboxId: string, sandbox: SandboxInstance): void {
     const now = Date.now();
 
-    this.cache.set(cacheKey, {
+    this.cache.set(sandboxId, {
       sandbox,
       lastAccessed: now,
     });
 
-    console.log(`[SandboxCache] Manually cached ${cacheKey}`);
+    console.log(`[SandboxCache] Manually cached ${sandboxId}`);
   }
 
   /**

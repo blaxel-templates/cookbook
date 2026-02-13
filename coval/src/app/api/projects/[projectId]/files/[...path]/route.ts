@@ -12,13 +12,9 @@ export async function GET(
 ) {
   try {
     const { projectId, path } = await params;
-    const isLocalSandbox = !!process.env.SANDBOX_FORCED_URL;
 
     // Get cached sandbox instance (projectId is the sandboxId)
-    const sandbox = await sandboxCache.get(
-      projectId,
-      isLocalSandbox ? process.env.SANDBOX_FORCED_URL : undefined
-    );
+    const sandbox = await sandboxCache.get(projectId);
 
     // Construct file path
     const filePath = '/' + path.join('/');

@@ -3,7 +3,35 @@
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { fetchWithBasePath, navigateWithBasePath } from "@/lib/basePath";
+import { fetchWithBasePath, navigateWithBasePath, withBasePath } from "@/lib/basePath";
+
+function ProjectScreenshot({ projectId }: { projectId: string }) {
+  const [hasScreenshot, setHasScreenshot] = useState(true);
+
+  if (!hasScreenshot) {
+    // Fallback: gradient placeholder with code icon
+    return (
+      <div className="w-full h-40 bg-gradient-to-br from-gray-800/50 to-gray-900/50 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center">
+          <svg className="w-6 h-6 text-orange-500/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-40 bg-gray-900/50 overflow-hidden">
+      <img
+        src={withBasePath(`/api/projects/${projectId}/screenshot`)}
+        alt="Project preview"
+        className="w-full h-full object-cover object-top"
+        onError={() => setHasScreenshot(false)}
+      />
+    </div>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
@@ -208,7 +236,7 @@ export default function Home() {
                 {existingProjects.slice(0, 6).map((project) => (
                   <div
                     key={project.id}
-                    className="relative p-6 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-orange-500/50 transition-all group cursor-pointer"
+                    className="relative bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-orange-500/50 transition-all group cursor-pointer overflow-hidden"
                     onClick={() => navigateWithBasePath(router, `/projects/${project.id}`)}
                   >
                     {/* Delete button */}
@@ -222,30 +250,28 @@ export default function Home() {
                       </svg>
                     </button>
 
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                        </svg>
+                    {/* Screenshot preview */}
+                    <ProjectScreenshot projectId={project.id} />
+
+                    {/* Card info */}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-white font-semibold line-clamp-1 group-hover:text-orange-400 transition-colors text-sm">
+                          {project.name}
+                        </h3>
+                        {project.sandboxId && (
+                          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            <span className="text-xs text-gray-500">Active</span>
+                          </div>
+                        )}
                       </div>
-                      {project.sandboxId && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                          <span className="text-xs text-gray-500">Active</span>
-                        </div>
-                      )}
-                    </div>
-                    <h3 className="text-white font-semibold mb-2 line-clamp-1 group-hover:text-orange-400 transition-colors">
-                      {project.name}
-                    </h3>
-                    <p className="text-gray-500 text-sm line-clamp-2 mb-3">
-                      {project.description}
-                    </p>
-                    <div className="flex items-center justify-between text-xs text-gray-600">
-                      <span>{new Date(project.updatedAt).toLocaleDateString()}</span>
-                      <span className="text-orange-500 group-hover:text-orange-400">
-                        Open →
-                      </span>
+                      <div className="flex items-center justify-between text-xs text-gray-600">
+                        <span>{new Date(project.updatedAt).toLocaleDateString()}</span>
+                        <span className="text-orange-500 group-hover:text-orange-400">
+                          Open →
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}

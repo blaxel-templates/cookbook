@@ -16,6 +16,101 @@ interface FileNode {
   isLoading?: boolean;
 }
 
+/** A single entry in the conversation timeline - either a log message or a tool call */
+type TimelineEntry =
+  | { type: 'log'; content: string }
+  | { type: 'tool'; id: number; name: string; args: Record<string, any>; result?: any; isExpanded: boolean };
+
+/** Find a file path from args by checking common property names and values */
+function findPathArg(args: Record<string, any>): string {
+  // Try common property names first
+  for (const key of ['path', 'filePath', 'file_path', 'directoryPath', 'directory_path', 'dir', 'dirPath']) {
+    if (args[key] && typeof args[key] === 'string') return args[key];
+  }
+  // Fallback: find first string value that looks like a file path
+  for (const val of Object.values(args)) {
+    if (typeof val === 'string' && val.startsWith('/')) return val;
+  }
+  return '';
+}
+
+/** Find a command string from args */
+function findCommandArg(args: Record<string, any>): string {
+  for (const key of ['command', 'cmd', 'script', 'exec', 'args']) {
+    if (args[key] && typeof args[key] === 'string') return args[key];
+  }
+  return JSON.stringify(args).slice(0, 80);
+}
+
+/** Find a process name from args */
+function findNameArg(args: Record<string, any>): string {
+  for (const key of ['name', 'identifier', 'processName', 'process_name', 'process']) {
+    if (args[key] && typeof args[key] === 'string') return args[key];
+  }
+  return '';
+}
+
+/** Human-readable label and summary for each tool */
+function formatToolCall(entry: { name: string; args: Record<string, any> }): { label: string; summary: string; icon: string } {
+  switch (entry.name) {
+    case 'fsWriteFile':
+      return { label: 'Write File', summary: findPathArg(entry.args) || 'file', icon: 'pencil' };
+    case 'fsReadFile':
+      return { label: 'Read File', summary: findPathArg(entry.args) || 'file', icon: 'book' };
+    case 'fsListDirectory':
+      return { label: 'List Directory', summary: findPathArg(entry.args) || '/', icon: 'folder' };
+    case 'processExecute':
+      return { label: 'Run Command', summary: findCommandArg(entry.args), icon: 'terminal' };
+    case 'processGetLogs':
+      return { label: 'Check Logs', summary: findNameArg(entry.args) || 'dev-server', icon: 'logs' };
+    default:
+      return { label: entry.name, summary: JSON.stringify(entry.args).slice(0, 80), icon: 'tool' };
+  }
+}
+
+/** Icon component for tool calls */
+function ToolIcon({ type }: { type: string }) {
+  switch (type) {
+    case 'pencil':
+      return (
+        <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+      );
+    case 'book':
+      return (
+        <svg className="w-3.5 h-3.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      );
+    case 'folder':
+      return (
+        <svg className="w-3.5 h-3.5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+      );
+    case 'terminal':
+      return (
+        <svg className="w-3.5 h-3.5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      );
+    case 'logs':
+      return (
+        <svg className="w-3.5 h-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      );
+  }
+}
+
 export default function ProjectPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -24,7 +119,7 @@ export default function ProjectPage() {
   const description = searchParams.get("desc");
   const isNewProject = projectId === "new";
   const [sandboxId, setSandboxId] = useState<string | null>(isNewProject ? null : projectId);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -38,6 +133,7 @@ export default function ProjectPage() {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [currentStatus, setCurrentStatus] = useState<string>("Waiting");
   const [isRefreshingFiles, setIsRefreshingFiles] = useState(false);
+  const toolCallIdCounter = useRef(0);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasStartedGenerationRef = useRef(false);
@@ -48,7 +144,7 @@ export default function ProjectPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [logs]);
+  }, [timeline]);
 
   // Fetch project data and state (skip for new projects)
   useEffect(() => {
@@ -76,7 +172,7 @@ export default function ProjectPage() {
             const { state } = await stateResponse.json();
             // Load existing logs
             if (state.logs && state.logs.length > 0) {
-              setLogs(state.logs);
+              setTimeline(state.logs.map((l: string) => ({ type: 'log' as const, content: l })));
             }
             // Update status based on state
             if (state.status === 'in_progress') {
@@ -139,7 +235,7 @@ export default function ProjectPage() {
   useEffect(() => {
     // Guard against double execution in StrictMode
     if (hasStartedGenerationRef.current) return;
-    
+
     // For new projects: auto-generate when we have a description
     // For existing projects: only auto-generate if no sandbox yet (shouldn't happen)
     if (description && !isGenerating && (isNewProject || (projectData && !projectData.sandboxId))) {
@@ -153,10 +249,11 @@ export default function ProjectPage() {
     setIsGenerating(true);
     setIsComplete(false);
     setCurrentStatus("Thinking");
+    toolCallIdCounter.current = 0;
 
-    // Add user request to logs if it's an update (not a new project)
+    // Add user request to timeline if it's an update (not a new project)
     if (sandboxId) {
-      setLogs(prev => [...prev, `\n[USER REQUEST] ${desc}`]);
+      setTimeline(prev => [...prev, { type: 'log', content: `\n[USER REQUEST] ${desc}` }]);
     }
 
     abortControllerRef.current = new AbortController();
@@ -217,11 +314,37 @@ export default function ProjectPage() {
 
             // Handle existing logs from sandbox state (sent at start of generation)
             if (parsed.existingLogs && Array.isArray(parsed.existingLogs)) {
-              setLogs(parsed.existingLogs);
+              setTimeline(parsed.existingLogs.map((l: string) => ({ type: 'log' as const, content: l })));
+            }
+
+            if (parsed.toolCall) {
+              const tc = parsed.toolCall;
+              const entry: TimelineEntry = {
+                type: 'tool',
+                id: toolCallIdCounter.current++,
+                name: tc.name,
+                args: tc.args || {},
+                result: tc.result,
+                isExpanded: false,
+              };
+              setTimeline((prev) => [...prev, entry]);
+
+              // Update status based on tool being used
+              if (tc.name === 'fsWriteFile') {
+                setCurrentStatus("Writing files");
+              } else if (tc.name === 'fsReadFile') {
+                setCurrentStatus("Reading files");
+              } else if (tc.name === 'processExecute') {
+                setCurrentStatus("Running command");
+              } else if (tc.name === 'processGetLogs') {
+                setCurrentStatus("Checking logs");
+              } else if (tc.name === 'fsListDirectory') {
+                setCurrentStatus("Browsing files");
+              }
             }
 
             if (parsed.log) {
-              setLogs((prev) => [...prev, parsed.log]);
+              setTimeline((prev) => [...prev, { type: 'log', content: parsed.log }]);
 
               const log = parsed.log.toLowerCase();
               if (log.includes("thinking")) {
@@ -281,9 +404,9 @@ export default function ProjectPage() {
       }
     } catch (error: any) {
       if (error.name === "AbortError") {
-        setLogs((prev) => [...prev, "❌ Generation cancelled by user"]);
+        setTimeline((prev) => [...prev, { type: 'log', content: "❌ Generation cancelled by user" }]);
       } else {
-        setLogs((prev) => [...prev, `❌ Error: ${error.message}`]);
+        setTimeline((prev) => [...prev, { type: 'log', content: `❌ Error: ${error.message}` }]);
       }
       setIsGenerating(false);
     }
@@ -498,14 +621,14 @@ export default function ProjectPage() {
       <div className="w-[420px] flex flex-col bg-[#1a1a1a] border-r border-gray-800">
         {/* Conversation Content */}
         <div className="flex-1 overflow-y-auto p-5 text-sm">
-          {logs.length === 0 && projectData && !projectData.sandboxId ? (
+          {timeline.length === 0 && projectData && !projectData.sandboxId ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-gray-500">
                 <div className="w-8 h-8 border-2 border-gray-600 border-t-gray-400 rounded-full animate-spin mx-auto mb-3"></div>
                 <p>Waiting to start...</p>
               </div>
             </div>
-          ) : logs.length === 0 && projectData && projectData.sandboxId ? (
+          ) : timeline.length === 0 && projectData && projectData.sandboxId ? (
             <div className="space-y-6 p-4">
               {/* Show existing project info */}
               <div>
@@ -556,26 +679,74 @@ export default function ProjectPage() {
                 <h3 className="text-lg font-semibold text-white mb-2">{description}</h3>
               </div>
 
-              {/* Logs */}
-              <div className="space-y-2 text-gray-400 text-sm">
-                {logs.map((log, i) => (
-                  <div
-                    key={i}
-                    className={`${
-                      log.startsWith("❌")
-                        ? "text-red-400"
-                        : log.startsWith("✅")
-                        ? "text-green-400 font-medium"
-                        : log.startsWith("[USER REQUEST]")
-                        ? "hidden"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    {log}
-                  </div>
-                ))}
-                <div ref={logsEndRef} />
+              {/* Unified Timeline: logs and tool calls interleaved */}
+              <div className="space-y-1.5 text-sm">
+                {timeline.map((entry, i) => {
+                  if (entry.type === 'log') {
+                    return (
+                      <div
+                        key={`tl-${i}`}
+                        className={`${
+                          entry.content.startsWith("❌")
+                            ? "text-red-400"
+                            : entry.content.startsWith("✅")
+                            ? "text-green-400 font-medium"
+                            : entry.content.startsWith("[USER REQUEST]")
+                            ? "hidden"
+                            : "text-gray-400"
+                        }`}
+                      >
+                        {entry.content}
+                      </div>
+                    );
+                  }
+                  // Tool call entry
+                  const { label, summary, icon } = formatToolCall(entry);
+                  return (
+                    <div key={`tl-${i}`} className="group">
+                      <button
+                        onClick={() =>
+                          setTimeline((prev) =>
+                            prev.map((t, idx) =>
+                              idx === i && t.type === 'tool' ? { ...t, isExpanded: !t.isExpanded } : t
+                            )
+                          )
+                        }
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-gray-800/30 hover:bg-gray-800/60 transition-colors text-left"
+                      >
+                        <ToolIcon type={icon} />
+                        <span className="text-xs font-medium text-gray-300 flex-shrink-0">{label}</span>
+                        <span className="text-[11px] text-gray-500 truncate flex-1 min-w-0">{summary}</span>
+                        <svg
+                          className={`w-2.5 h-2.5 text-gray-600 transition-transform flex-shrink-0 ${entry.isExpanded ? 'rotate-90' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                      {entry.isExpanded && (
+                        <div className="mt-1 ml-6 px-2.5 py-2 rounded bg-gray-900/60 border border-gray-800/50">
+                          <div className="text-[10px] text-gray-600 uppercase mb-1">Parameters</div>
+                          <pre className="text-[11px] text-gray-400 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                            {JSON.stringify(entry.args, null, 2)}
+                          </pre>
+                          {entry.result !== undefined && (
+                            <>
+                              <div className="text-[10px] text-gray-600 uppercase mt-2 mb-1">Result</div>
+                              <pre className="text-[11px] text-gray-400 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                                {typeof entry.result === 'string' ? entry.result : JSON.stringify(entry.result, null, 2)}
+                              </pre>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+              <div ref={logsEndRef} />
 
 
               {/* Done Message */}
