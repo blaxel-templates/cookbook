@@ -1,6 +1,31 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-blaxel-50: #fff7ed;
+  --color-blaxel-100: #ffedd5;
+  --color-blaxel-200: #fed7aa;
+  --color-blaxel-300: #fdba74;
+  --color-blaxel-400: #fb923c;
+  --color-blaxel-500: #f97316;
+  --color-blaxel-600: #ea580c;
+  --color-blaxel-700: #c2410c;
+  --color-blaxel-800: #9a3412;
+  --color-blaxel-900: #7c2d12;
+  --color-blaxel-950: #431407;
+
+  --animate-fade-in: fadeIn 0.5s ease-out;
+  --animate-slide-up: slideUp 0.5s ease-out;
+
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+}
 
 @layer base {
   html {
@@ -43,7 +68,7 @@
   }
 
   .card-hover {
-    @apply card hover:border-orange-500/50 transition-all;
+    @apply bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-orange-500/50 transition-all;
   }
 
   .input {
