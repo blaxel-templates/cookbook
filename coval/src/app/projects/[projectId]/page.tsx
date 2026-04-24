@@ -911,7 +911,7 @@ export default function ProjectPage() {
         {/* Content */}
         <div className="flex-1">
           {activeTab === "preview" ? (
-            <div className="h-full bg-white">
+            <div className={`h-full ${previewUrl ? "bg-white" : "bg-[#0d0d0d]"}`}>
               {previewUrl ? (
                 <iframe
                   src={previewUrl}
@@ -920,9 +920,9 @@ export default function ProjectPage() {
                   sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                 />
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-800">
+                <div className="flex items-center justify-center h-full text-gray-300">
                   <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-orange-200/20 border-t-orange-500 rounded-full animate-spin mx-auto mb-3"></div>
+                    <div className="w-12 h-12 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mx-auto mb-3"></div>
                     <p className="text-lg font-medium">Setting up your app...</p>
                   </div>
                 </div>

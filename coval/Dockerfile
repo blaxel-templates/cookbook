@@ -35,4 +35,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/codegen-sandbox/app ./codegen-san
 # Switch to non-root user
 USER nextjs
 
+ENV PORT=80
+ENV HOST=0.0.0.0
+
 ENTRYPOINT ["bun", "server.js"]
