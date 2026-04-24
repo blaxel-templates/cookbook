@@ -20,7 +20,7 @@ declare const process: { env: { [key: string]: string | undefined } };
 const MCP_TOOLS_WHITELIST = ['fsReadFile', 'fsWriteFile', 'fsListDirectory', 'processExecute', 'processGetLogs'];
 
 async function getModel() {
-  return anthropic('claude-opus-4-6');
+  return anthropic('claude-opus-4-7');
 }
 
 /** Connect to a sandbox's MCP server and return the filtered tool set */
@@ -105,7 +105,11 @@ export async function POST(req: NextRequest) {
             sw.log("Starting to build your app...");
             sw.log("Setting up development environment...");
 
-            const result = await createSandbox(sandboxImage);
+            const createLog = (msg: string) => {
+              sessionLogs.push(msg);
+              sw.log(msg);
+            };
+            const result = await createSandbox(sandboxImage, createLog);
             sandbox = result.sandbox;
             previewUrl = result.previewUrl;
 

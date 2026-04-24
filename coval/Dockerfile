@@ -29,6 +29,8 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Template files used by the fallback sandbox flow (when the custom image is missing)
+COPY --from=builder --chown=nextjs:nodejs /app/codegen-sandbox/app ./codegen-sandbox/app
 
 # Switch to non-root user
 USER nextjs

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter, useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import Editor from "@monaco-editor/react";
 import Link from "next/link";
 import { fetchWithBasePath, navigateWithBasePath, withBasePath } from "@/lib/basePath";
@@ -552,7 +552,7 @@ export default function ProjectPage() {
     }
   };
 
-  const renderFileTree = (nodes: FileNode[], level = 0, inSidebar = false): JSX.Element[] => {
+  const renderFileTree = (nodes: FileNode[], level = 0, inSidebar = false): ReactElement[] => {
     return nodes.map((node, index) => (
       <div key={`${node.path}-${index}`}>
         <div
@@ -689,6 +689,8 @@ export default function ProjectPage() {
                         className={`${
                           entry.content.startsWith("❌")
                             ? "text-red-400"
+                            : entry.content.startsWith("⚠️") || entry.content.startsWith("⚠")
+                            ? "text-yellow-400"
                             : entry.content.startsWith("✅")
                             ? "text-green-400 font-medium"
                             : entry.content.startsWith("[USER REQUEST]")

@@ -1,6 +1,7 @@
 type = "agent"
 public = true
+region = 'us-pdx-1'
 
 [runtime]
 generation = "mk3"
-memory = 4096
+memory = 512
