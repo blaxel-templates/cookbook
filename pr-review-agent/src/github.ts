@@ -1,8 +1,16 @@
 import { GitHubPRData } from "./types";
 
 export function parsePRUrl(url: string): { owner: string; repo: string; prNumber: string; repoUrl: string } | null {
-  const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/);
-  if (!match) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" || parsed.hostname !== "github.com" || parsed.port || parsed.username || parsed.password) return null;
+
+  const match = parsed.pathname.match(/^\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/pull\/([1-9]\d*)\/?$/);
+  if (!match || match[2] === "." || match[2] === "..") return null;
 
   const [, owner, repo, prNumber] = match;
   return {
@@ -14,6 +22,11 @@ export function parsePRUrl(url: string): { owner: string; repo: string; prNumber
 }
 
 export async function fetchGitHubPRData(owner: string, repo: string, prNumber: string, token?: string): Promise<GitHubPRData> {
+  if (!/^[A-Za-z0-9-]+$/.test(owner) || !/^[A-Za-z0-9._-]+$/.test(repo) || repo === "." || repo === ".." || !/^[1-9]\d*$/.test(prNumber)) {
+    throw new Error("Invalid GitHub PR coordinates");
+  }
+  const apiPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${prNumber}`;
+  const apiUrl = (suffix = "") => new URL(`${apiPath}${suffix}`, "https://api.github.com");
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.v3+json',
     'User-Agent': 'Pr-Review-Agent'
@@ -23,8 +36,9 @@ export async function fetchGitHubPRData(owner: string, repo: string, prNumber: s
     headers['Authorization'] = `token ${token}`;
   }
 
-  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, {
-    headers
+  const response = await fetch(apiUrl(), {
+    headers,
+    redirect: "error"
   });
 
   if (!response.ok) {
@@ -34,8 +48,9 @@ export async function fetchGitHubPRData(owner: string, repo: string, prNumber: s
   const prData = await response.json() as GitHubPRData;
 
   // Fetch files data
-  const filesResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/files`, {
-    headers
+  const filesResponse = await fetch(apiUrl("/files"), {
+    headers,
+    redirect: "error"
   });
 
   if (filesResponse.ok) {
@@ -48,8 +63,9 @@ export async function fetchGitHubPRData(owner: string, repo: string, prNumber: s
   }
 
   // Fetch commits data
-  const commitsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/commits`, {
-    headers
+  const commitsResponse = await fetch(apiUrl("/commits"), {
+    headers,
+    redirect: "error"
   });
 
   if (commitsResponse.ok) {

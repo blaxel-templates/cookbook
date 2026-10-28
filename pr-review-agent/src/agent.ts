@@ -27,7 +27,7 @@ export default async function agent(
   stream: Stream
 ): Promise<void> {
   // Check if input contains a GitHub PR URL
-  const prUrlMatch = input.match(/https:\/\/github\.com\/[^\/]+\/[^\/]+\/pull\/\d+/);
+  const prUrlMatch = input.match(/https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9._-]+\/pull\/[1-9]\d*\/?(?=$|[\s?#])/);
 
   if (!prUrlMatch) {
     // Use the standard agent for non-PR questions
