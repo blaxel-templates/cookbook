@@ -8,11 +8,11 @@ export const revalidate = 0;
 // GET /api/projects - List all coval sandboxes
 export async function GET() {
   try {
-    // List all sandboxes and filter by coval label
-    const allSandboxes = await SandboxInstance.list();
-    const covalSandboxes = allSandboxes.filter(
-      (sandbox) => sandbox.metadata.labels?.coval === "true"
-    );
+    // List all sandboxes (every page) and keep the coval ones
+    const covalSandboxes: SandboxInstance[] = [];
+    for await (const sandbox of await SandboxInstance.list()) {
+      if (sandbox.metadata.labels?.coval === "true") covalSandboxes.push(sandbox);
+    }
 
     // Transform to project-like format for frontend compatibility
     const projects = covalSandboxes.map((sandbox) => ({

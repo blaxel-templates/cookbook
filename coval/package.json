@@ -14,7 +14,7 @@
     "@ai-sdk/anthropic": "^3.0.71",
     "@ai-sdk/mcp": "^1.0.36",
     "@ai-sdk/openai": "^3.0.53",
-    "@blaxel/core": "^0.2.80",
+    "@blaxel/core": "^0.3.32",
     "@monaco-editor/react": "^4.7.0",
     "ai": "^6.0.168",
     "next": "^16.2.4",
